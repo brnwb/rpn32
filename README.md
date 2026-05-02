@@ -114,7 +114,7 @@ error: invalid operation (divide by zero)
 
 - Numbers push onto the stack
 - `+ - * / ^` arithmetic
-- `sqrt sq ! fact sin cos tan ln log exp chs 1/x`
+- `sqrt sq ! fact mod abs int frac floor ceil round sin cos tan ln log exp chs 1/x`
 - `deg`, `rad` angle modes for trigonometry
 - `enter`/`dup`, `lastx`, `swap`/`xy`, `drop`/`clx`, `clear`/`clr`
 - `fix n`, `sci n`, `eng n`, `all` display modes

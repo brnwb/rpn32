@@ -151,6 +151,36 @@ describe("RpnCalculator", () => {
     expect(calc.x.eq(720)).toBe(true);
   });
 
+  test("modulo", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "17 5 mod");
+    expect(calc.x.eq(2)).toBe(true);
+  });
+
+  test("absolute value", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "-5 abs");
+    expect(calc.x.eq(5)).toBe(true);
+  });
+
+  test("integer and fractional parts", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "12.345 int 12.345 frac");
+    expectStack(calc, [ZERO, ZERO, d(12), d("0.345")]);
+  });
+
+  test("integer and fractional parts preserve sign", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "-12.345 int -12.345 frac");
+    expectStack(calc, [ZERO, ZERO, d(-12), d("-0.345")]);
+  });
+
+  test("floor ceiling and round", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "12.6 floor 12.1 ceil 12.5 round");
+    expectStack(calc, [ZERO, d(12), d(13), d(13)]);
+  });
+
   test("factorial rejects non-integers", () => {
     const calc = new RpnCalculator();
     processLine(calc, "2.5");
@@ -177,6 +207,13 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     processLine(calc, "1 0");
     expect(() => processLine(calc, "/")).toThrow("invalid operation (divide by zero)");
+    expectStack(calc, [ZERO, ZERO, d(1), d(0)]);
+  });
+
+  test("modulo by zero preserves stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 0");
+    expect(() => processLine(calc, "mod")).toThrow("invalid operation (divide by zero)");
     expectStack(calc, [ZERO, ZERO, d(1), d(0)]);
   });
 

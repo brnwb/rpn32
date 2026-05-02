@@ -48,6 +48,7 @@ export function processToken(calc: RpnCalculator, token: string): void {
     "÷": divide,
     "^": decimalPower,
     pow: decimalPower,
+    mod: modulo,
   };
   const unaryOps: Record<string, UnaryOp> = {
     sqrt: sqrt,
@@ -58,6 +59,12 @@ export function processToken(calc: RpnCalculator, token: string): void {
     ln: naturalLog,
     log: commonLog,
     exp: (x) => Decimal.exp(x),
+    abs: (x) => x.abs(),
+    int: (x) => x.trunc(),
+    frac: fractionalPart,
+    floor: (x) => x.floor(),
+    ceil: (x) => x.ceil(),
+    round: (x) => x.round(),
     chs: (x) => x.neg(),
     neg: (x) => x.neg(),
     "1/x": reciprocal,
@@ -97,6 +104,15 @@ export function processToken(calc: RpnCalculator, token: string): void {
 function divide(a: Decimal, b: Decimal): Decimal {
   if (b.isZero()) throw new RpnError("invalid operation (divide by zero)");
   return a.div(b);
+}
+
+function modulo(a: Decimal, b: Decimal): Decimal {
+  if (b.isZero()) throw new RpnError("invalid operation (divide by zero)");
+  return a.mod(b);
+}
+
+function fractionalPart(x: Decimal): Decimal {
+  return x.minus(x.trunc());
 }
 
 function sqrt(x: Decimal): Decimal {
