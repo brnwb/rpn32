@@ -3,6 +3,10 @@ import { argv, stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
 import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "@rpn32/core";
 
+type ReplInterface = ReturnType<typeof createInterface> & { history: string[] };
+
+const HISTORY_SIZE = 1000;
+
 const HELP = `Commands:
   numbers         push values onto the stack, e.g. 3 2 +
   + - * / ^       arithmetic
@@ -69,7 +73,13 @@ function runExpression(expression: string): void {
 async function runRepl(): Promise<void> {
   const calc = new RpnCalculator();
   let fullStackDisplay = false;
-  const repl = createInterface({ input, output, prompt: promptFor(calc) });
+  const repl = createInterface({
+    input,
+    output,
+    prompt: promptFor(calc),
+    historySize: HISTORY_SIZE,
+    removeHistoryDuplicates: true,
+  }) as ReplInterface;
 
   console.log("rpn32 — type 'help' for commands, 'quit' to exit");
   console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
@@ -121,7 +131,7 @@ function formatError(error: unknown): string {
   return `math error: ${String(error)}`;
 }
 
-function prompt(repl: ReturnType<typeof createInterface>, calc: RpnCalculator): void {
+function prompt(repl: ReplInterface, calc: RpnCalculator): void {
   repl.setPrompt(promptFor(calc));
   repl.prompt();
 }

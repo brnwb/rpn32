@@ -41,7 +41,7 @@ echo '3 2 +' | rpn32
 # 5
 ```
 
-Interactive mode starts when no arguments or piped input are provided.
+Interactive mode starts when no arguments or piped input are provided. The REPL supports up/down arrow history for the current session without writing history files.
 
 Use one expression per line:
 
