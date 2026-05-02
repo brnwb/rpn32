@@ -64,8 +64,8 @@ rpn> +
 - `deg`, `rad` angle modes for trigonometry
 - `enter`/`dup`, `lastx`, `swap`/`xy`, `drop`/`clx`, `clear`/`clr`
 - `fix n`, `sci n`, `eng n`, `all` display modes
-- `stack` to show all registers once
-- `stack on` / `stack off` to toggle full stack display
+- `stack` / `stack on` to show all registers after each entry
+- `stack off` to return to compact display
 - `pi`, `e`
 - `help`, `quit`
 

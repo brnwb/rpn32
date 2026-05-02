@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
-import { AngleMode, RpnCalculator, RpnError, formatStack } from "./calculator.js";
+import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "./index.js";
 
 const HELP = `Commands:
   numbers         push values onto the stack, e.g. 3 2 +
@@ -17,8 +17,7 @@ const HELP = `Commands:
   sci n           show scientific notation with n decimal places
   eng n           show engineering notation with n decimal places
   all             show compact 12-digit display
-  stack           show all stack registers once
-  stack on/full   always show all stack registers
+  stack/on/full   always show all stack registers
   stack off       return to compact stack display
   help            show this help
   quit/exit/q     leave
@@ -49,12 +48,7 @@ export async function main(): Promise<void> {
       prompt(repl, calc);
       continue;
     }
-    if (command === "stack") {
-      console.log(formatStack(calc.stack, calc.display, { full: true }));
-      prompt(repl, calc);
-      continue;
-    }
-    if (command === "stack on" || command === "stack full") {
+    if (command === "stack" || command === "stack on" || command === "stack full") {
       fullStackDisplay = true;
       console.log(formatStack(calc.stack, calc.display, { full: true }));
       prompt(repl, calc);
@@ -68,7 +62,7 @@ export async function main(): Promise<void> {
     }
 
     try {
-      calc.processLine(line);
+      processLine(calc, line);
     } catch (error) {
       if (error instanceof RpnError) {
         console.log(`error: ${error.message}`);
