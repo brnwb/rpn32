@@ -1,5 +1,5 @@
 import { Decimal } from "decimal.js";
-import { StackUnderflowError } from "./errors.js";
+import { RpnError, StackUnderflowError } from "./errors.js";
 import { type BinaryOp, type UnaryOp } from "./math.js";
 import { PI, ZERO, type NumberValue } from "./numbers.js";
 import { AngleMode, DisplayMode, MAX_DISPLAY_DIGITS, type DisplaySettings } from "./settings.js";
@@ -78,14 +78,45 @@ export class RpnCalculator {
   }
 
   applyUnary(op: UnaryOp): void {
+    const previousStack = [...this.stack];
+    const previousLastX = this.lastX;
+    const previousLiftEnabled = this.liftEnabled;
+
     this.lastX = this.x;
-    this.stack[3] = op(this.x);
+    let result: NumberValue;
+    try {
+      result = op(this.x);
+    } catch (error) {
+      this.restore(previousStack, previousLastX, previousLiftEnabled);
+      throw error;
+    }
+    if (!result.isFinite()) {
+      this.restore(previousStack, previousLastX, previousLiftEnabled);
+      throw new RpnError(nonFiniteResultMessage(result));
+    }
+
+    this.stack[3] = result;
     this.liftEnabled = true;
   }
 
   applyBinary(op: BinaryOp): void {
+    const previousStack = [...this.stack];
+    const previousLastX = this.lastX;
+    const previousLiftEnabled = this.liftEnabled;
+
     this.lastX = this.x;
-    const result = op(this.y, this.x);
+    let result: NumberValue;
+    try {
+      result = op(this.y, this.x);
+    } catch (error) {
+      this.restore(previousStack, previousLastX, previousLiftEnabled);
+      throw error;
+    }
+    if (!result.isFinite()) {
+      this.restore(previousStack, previousLastX, previousLiftEnabled);
+      throw new RpnError(nonFiniteResultMessage(result));
+    }
+
     this.stack[3] = result;
     this.stack[2] = this.stack[1] ?? ZERO;
     this.stack[1] = this.stack[0] ?? ZERO;
@@ -109,6 +140,17 @@ export class RpnCalculator {
     this.stack[1] = this.stack[2] ?? ZERO;
     this.stack[2] = this.stack[3] ?? ZERO;
   }
+
+  private restore(stack: NumberValue[], lastX: NumberValue, liftEnabled: boolean): void {
+    this.stack = stack;
+    this.lastX = lastX;
+    this.liftEnabled = liftEnabled;
+  }
+}
+
+function nonFiniteResultMessage(result: NumberValue): string {
+  if (!result.isNaN()) return "invalid operation (overflow)";
+  return "invalid operation";
 }
 
 export function trigOps(calc: RpnCalculator): Pick<Record<string, UnaryOp>, "sin" | "cos" | "tan"> {

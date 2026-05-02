@@ -44,23 +44,23 @@ export function processToken(calc: RpnCalculator, token: string): void {
     "*": (a, b) => a.times(b),
     x: (a, b) => a.times(b),
     "×": (a, b) => a.times(b),
-    "/": (a, b) => a.div(b),
-    "÷": (a, b) => a.div(b),
+    "/": divide,
+    "÷": divide,
     "^": decimalPower,
     pow: decimalPower,
   };
   const unaryOps: Record<string, UnaryOp> = {
-    sqrt: (x) => x.sqrt(),
+    sqrt: sqrt,
     sq: (x) => x.times(x),
     "!": factorial,
     fact: factorial,
     ...trigOps(calc),
-    ln: (x) => Decimal.ln(x),
-    log: (x) => Decimal.log10(x),
+    ln: naturalLog,
+    log: commonLog,
     exp: (x) => Decimal.exp(x),
     chs: (x) => x.neg(),
     neg: (x) => x.neg(),
-    "1/x": (x) => new Decimal(1).div(x),
+    "1/x": reciprocal,
   };
 
   if (token in binaryOps) {
@@ -92,6 +92,33 @@ export function processToken(calc: RpnCalculator, token: string): void {
   } else {
     throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
   }
+}
+
+function divide(a: Decimal, b: Decimal): Decimal {
+  if (b.isZero()) throw new RpnError("invalid operation (divide by zero)");
+  return a.div(b);
+}
+
+function sqrt(x: Decimal): Decimal {
+  if (x.isNegative()) {
+    throw new RpnError("invalid operation (imaginary numbers not supported)");
+  }
+  return x.sqrt();
+}
+
+function naturalLog(x: Decimal): Decimal {
+  if (x.lte(0)) throw new RpnError("invalid operation (logarithm domain error)");
+  return Decimal.ln(x);
+}
+
+function commonLog(x: Decimal): Decimal {
+  if (x.lte(0)) throw new RpnError("invalid operation (logarithm domain error)");
+  return Decimal.log10(x);
+}
+
+function reciprocal(x: Decimal): Decimal {
+  if (x.isZero()) throw new RpnError("invalid operation (divide by zero)");
+  return new Decimal(1).div(x);
 }
 
 function setDisplayMode(calc: RpnCalculator, mode: "fix" | "sci" | "eng", digitsToken: string): void {

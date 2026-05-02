@@ -118,6 +118,42 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     processLine(calc, "-1");
     expect(() => processLine(calc, "!")).toThrow("factorial requires a non-negative integer");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(-1)]);
+  });
+
+  test("invalid unary operation preserves stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "-1");
+    expect(() => processLine(calc, "sqrt")).toThrow("invalid operation (imaginary numbers not supported)");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(-1)]);
+  });
+
+  test("division by zero preserves stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 0");
+    expect(() => processLine(calc, "/")).toThrow("invalid operation (divide by zero)");
+    expectStack(calc, [ZERO, ZERO, d(1), d(0)]);
+  });
+
+  test("reciprocal of zero reports divide by zero and preserves stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0");
+    expect(() => processLine(calc, "1/x")).toThrow("invalid operation (divide by zero)");
+    expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
+  });
+
+  test("logarithm domain error preserves stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0");
+    expect(() => processLine(calc, "ln")).toThrow("invalid operation (logarithm domain error)");
+    expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
+  });
+
+  test("overflow reports overflow and preserves stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1e9000000000000000 10");
+    expect(() => processLine(calc, "*")).toThrow("invalid operation (overflow)");
+    expectStack(calc, [ZERO, ZERO, d("1e9000000000000000"), d(10)]);
   });
 
   test("default trig angle mode is degrees", () => {
