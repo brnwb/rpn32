@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { stdin as input, stdout as output } from "node:process";
+import { argv, stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
 import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "@rpn32/core";
 
@@ -23,9 +23,50 @@ const HELP = `Commands:
   quit/exit/q     leave
 
 You can enter a whole expression on one line: 3 2 +
-Or use it like a calculator: enter 3, then 2, then + on separate prompts.`;
+Or use it like a calculator: enter 3, then 2, then + on separate prompts.
 
-export async function main(): Promise<void> {
+Non-interactive usage:
+  rpn32 '3 2 +'
+  echo '3 2 +' | rpn32`;
+
+export async function main(args: string[] = argv.slice(2)): Promise<void> {
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(HELP);
+    return;
+  }
+
+  if (args.length === 1) {
+    runExpression(args[0] ?? "");
+    return;
+  }
+
+  if (args.length > 1) {
+    console.error("error: expression must be provided as a single quoted argument");
+    console.error("usage: rpn32 '3 2 +'");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!input.isTTY) {
+    runExpression(await readStdin());
+    return;
+  }
+
+  await runRepl();
+}
+
+function runExpression(expression: string): void {
+  const calc = new RpnCalculator();
+  try {
+    processLine(calc, expression);
+    console.log(formatStack(calc.stack, calc.display));
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  }
+}
+
+async function runRepl(): Promise<void> {
   const calc = new RpnCalculator();
   let fullStackDisplay = false;
   const repl = createInterface({ input, output, prompt: promptFor(calc) });
@@ -64,13 +105,7 @@ export async function main(): Promise<void> {
     try {
       processLine(calc, line);
     } catch (error) {
-      if (error instanceof RpnError) {
-        console.log(`error: ${error.message}`);
-      } else if (error instanceof Error) {
-        console.log(`math error: ${error.message}`);
-      } else {
-        console.log(`math error: ${String(error)}`);
-      }
+      console.log(formatError(error));
     }
 
     console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
@@ -78,6 +113,12 @@ export async function main(): Promise<void> {
   }
 
   repl.close();
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof RpnError) return `error: ${error.message}`;
+  if (error instanceof Error) return `math error: ${error.message}`;
+  return `math error: ${String(error)}`;
 }
 
 function prompt(repl: ReturnType<typeof createInterface>, calc: RpnCalculator): void {
@@ -89,7 +130,16 @@ function promptFor(calc: RpnCalculator): string {
   return calc.angleMode === AngleMode.Rad ? "rpn(rad)> " : "rpn> ";
 }
 
+async function readStdin(): Promise<string> {
+  input.setEncoding("utf8");
+  let contents = "";
+  for await (const chunk of input) {
+    contents += chunk;
+  }
+  return contents;
+}
+
 main().catch((error: unknown) => {
-  console.error(error);
+  console.error(formatError(error));
   process.exitCode = 1;
 });

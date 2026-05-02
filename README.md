@@ -27,6 +27,22 @@ npx rpn32
 
 ## Usage
 
+Evaluate directly from the command line:
+
+```bash
+rpn32 '3 2 +'
+# 5
+```
+
+Pass the expression as one quoted argument. Or pipe an expression into `rpn32`:
+
+```bash
+echo '3 2 +' | rpn32
+# 5
+```
+
+Interactive mode starts when no arguments or piped input are provided.
+
 Use one expression per line:
 
 ```text
