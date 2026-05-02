@@ -1,0 +1,147 @@
+import { Decimal } from "decimal.js";
+import { describe, expect, test } from "vitest";
+
+import { DisplayMode, RpnCalculator, ZERO, formatNumber, formatStack } from "../src/index.js";
+
+const d = (value: string | number): Decimal => new Decimal(value);
+
+const expectStack = (calc: RpnCalculator, expected: Decimal[]): void => {
+  expect(calc.stack.map((value) => value.toString())).toEqual(expected.map((value) => value.toString()));
+};
+
+describe("RpnCalculator", () => {
+  test("initial stack is four zero registers", () => {
+    const calc = new RpnCalculator();
+    expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
+    expect(calc.x.eq(ZERO)).toBe(true);
+  });
+
+  test("one-line expression", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("3 2 +");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(5)]);
+  });
+
+  test("old-school entry with return between numbers", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("3");
+    calc.processLine("2");
+    calc.processLine("+");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(5)]);
+  });
+
+  test("enter copies X to Y and next number replaces X", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("3 enter");
+    expectStack(calc, [ZERO, ZERO, d(3), d(3)]);
+
+    calc.processLine("2");
+    expectStack(calc, [ZERO, ZERO, d(3), d(2)]);
+
+    calc.processLine("+");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(5)]);
+  });
+
+  test("enter allows square by multiplication", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("3 enter *");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(9)]);
+  });
+
+  test("stack lift repeats T register", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("1 2 3 4 5");
+    expectStack(calc, [d(2), d(3), d(4), d(5)]);
+  });
+
+  test("binary operation drops stack and repeats T", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("1 2 3 4 +");
+    expectStack(calc, [d(1), d(1), d(2), d(7)]);
+  });
+
+  test("number after binary operation lifts result", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("3 2 + 4 *");
+    expect(calc.x.eq(20)).toBe(true);
+  });
+
+  test("lastx remembers X before binary operation", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("3 2 + lastx");
+    expectStack(calc, [ZERO, ZERO, d(5), d(2)]);
+  });
+
+  test("lastx remembers X before unary operation", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("9 sqrt lastx");
+    expectStack(calc, [ZERO, ZERO, d(3), d(9)]);
+  });
+
+  test("lastx can reverse division", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("10 4 / lastx *");
+    expect(calc.x.eq(10)).toBe(true);
+  });
+
+  test("decimal arithmetic avoids binary floating point surprises", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("0.1 0.2 +");
+    expect(calc.x.toString()).toBe("0.3");
+  });
+
+  test("square", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("3 sq");
+    expect(calc.x.eq(9)).toBe(true);
+  });
+
+  test("unary and constants", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("pi sin");
+    expect(calc.x.toNumber()).toBeCloseTo(Math.sin(Math.PI), 14);
+  });
+
+  test("display mode commands do not push the digit argument", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("10 3 / fix 2");
+    expect(calc.x.toString()).toBe("3.33333333333333");
+    expect(calc.display.mode).toBe(DisplayMode.Fix);
+    expect(calc.display.digits).toBe(2);
+    expect(formatStack(calc.stack, calc.display)).toBe("3.33");
+  });
+
+  test("scientific display mode", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("12345 sci 4");
+    expect(formatStack(calc.stack, calc.display)).toBe("1.2345e+4");
+  });
+
+  test("engineering display mode", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("12345 eng 3");
+    expect(formatStack(calc.stack, calc.display)).toBe("12.345e+3");
+  });
+
+  test("all display mode restores compact display", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("5 fix 2 all");
+    expect(calc.display.mode).toBe(DisplayMode.All);
+    expect(formatStack(calc.stack, calc.display)).toBe("5");
+  });
+
+  test("format number trims trailing decimal zeroes", () => {
+    expect(formatNumber(d("0.625000000000"))).toBe("0.625");
+    expect(formatNumber(d("5.00000000000"))).toBe("5");
+  });
+
+  test("format stack compact", () => {
+    expect(formatStack([ZERO, ZERO, ZERO, ZERO])).toBe("0");
+    expect(formatStack([ZERO, ZERO, d(3), d(2)])).toBe("2");
+    expect(formatStack([d(1), ZERO, ZERO, d(2)])).toBe("2");
+  });
+
+  test("format stack full", () => {
+    expect(formatStack([ZERO, ZERO, ZERO, d(7)], undefined, { full: true })).toBe("T: 0  Z: 0  Y: 0  X: 7");
+  });
+});
