@@ -27,6 +27,13 @@ npx rpn32
 
 ## Usage
 
+Show help or version:
+
+```bash
+rpn32 --help
+rpn32 --version
+```
+
 Evaluate directly from the command line:
 
 ```bash
@@ -113,15 +120,18 @@ error: invalid operation (divide by zero)
 ## Current commands
 
 - Numbers push onto the stack
-- `+ - * / ^` arithmetic
-- `sqrt sq ! fact mod abs int frac floor ceil round sin cos tan ln log exp chs 1/x`
-- `deg`, `rad` angle modes for trigonometry
-- `enter`/`dup`, `lastx`, `swap`/`xy`, `drop`/`clx`, `clear`/`clr`
-- `fix n`, `sci n`, `eng n`, `all` display modes
-- `stack` / `stack on` to show all registers after each entry
-- `stack off` to return to compact display
-- `pi`, `e`
-- `help`, `quit`
+- Arithmetic: `+ - * / ^`
+- Math: `sqrt sq ! fact mod abs int frac floor ceil round`
+- Trig/log/exponential: `sin cos tan ln log exp`
+- Other numeric functions: `chs 1/x`
+- Angle modes: `deg`, `rad`
+- Stack: `enter`, `lastx`, `swap`, `drop`, `clx`, `clear`
+- Display modes: `fix n`, `sci n`, `eng n`, `all`
+- Full stack display: `stack`, `stack off`
+- Constants: `pi`, `e`
+- REPL: `help`, `quit`
+
+A few convenience aliases are currently accepted: `dup`, `xy`, `pow`, `fact`, and `neg`.
 
 ## Project structure
 

@@ -2,7 +2,7 @@
 
 A terminal RPN calculator inspired by my favorite calculator, the HP 32SII. Written in TypeScript for Node.js.
 
-The calculator core uses `decimal.js` instead of JavaScript binary floating point, which makes decimal calculator-style arithmetic behave more like an HP calculator. It also uses a fixed four-level HP-style stack, `T Z Y X`, with stack lift, `ENTER`, and `lastx` behavior.
+The calculator core uses `decimal.js` instead of JavaScript binary floating point, which makes decimal calculator-style arithmetic behave more like an HP calculator. It also uses a fixed four-level HP-style stack, `T Z Y X`, with stack lift, `ENTER`, and `lastx` behavior. `lastx` is updated by numeric operations and preserved by stack/display/angle commands and invalid operations.
 
 This is _inspired_ by the 32SII, but not a perfect emulation.
 
@@ -26,6 +26,29 @@ npx rpn32
 ```
 
 ## Usage
+
+Show help or version:
+
+```bash
+rpn32 --help
+rpn32 --version
+```
+
+Evaluate directly from the command line:
+
+```bash
+rpn32 '3 2 +'
+# 5
+```
+
+Pass the expression as one quoted argument. Or pipe an expression into `rpn32`:
+
+```bash
+echo '3 2 +' | rpn32
+# 5
+```
+
+Interactive mode starts when no arguments or piped input are provided. The REPL supports up/down arrow history for the current session without writing history files.
 
 Use one expression per line:
 
@@ -97,15 +120,18 @@ error: invalid operation (divide by zero)
 ## Current commands
 
 - Numbers push onto the stack
-- `+ - * / ^` arithmetic
-- `sqrt sq ! fact sin cos tan ln log exp chs 1/x`
-- `deg`, `rad` angle modes for trigonometry
-- `enter`/`dup`, `lastx`, `swap`/`xy`, `drop`/`clx`, `clear`/`clr`
-- `fix n`, `sci n`, `eng n`, `all` display modes
-- `stack` / `stack on` to show all registers after each entry
-- `stack off` to return to compact display
-- `pi`, `e`
-- `help`, `quit`
+- Arithmetic: `+ - * / ^`
+- Math: `sqrt sq ! fact mod abs int frac floor ceil round`
+- Trig/log/exponential: `sin cos tan ln log exp`
+- Other numeric functions: `chs 1/x`
+- Angle modes: `deg`, `rad`
+- Stack: `enter`, `lastx`, `swap`, `drop`, `clx`, `clear`
+- Display modes: `fix n`, `sci n`, `eng n`, `all`
+- Full stack display: `stack`, `stack off`
+- Constants: `pi`, `e`
+- REPL: `help`, `quit`
+
+A few convenience aliases are currently accepted: `dup`, `xy`, `pow`, `fact`, and `neg`.
 
 ## Project structure
 
@@ -131,10 +157,13 @@ packages/
       cli.ts            Node readline REPL
 ```
 
-The CLI depends on `@rpn32/core`, so future interfaces like a TUI or Electron app can use the same calculator engine without depending on the CLI.
+The CLI depends on `@rpn32/core`, so future interfaces like a TUI can use the same calculator engine without depending on the CLI.
 
-## Check
+## Development commands
 
 ```bash
-npm run check
+npm run format        # format with oxfmt
+npm run format:check  # check formatting with oxfmt
+npm run lint          # lint with oxlint
+npm run check         # format check, lint, build, and test
 ```

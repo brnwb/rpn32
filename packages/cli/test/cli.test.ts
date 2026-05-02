@@ -5,6 +5,27 @@ import { describe, expect, test } from "vitest";
 const execFileAsync = promisify(execFile);
 
 describe("rpn32 CLI", () => {
+  test("prints help", async () => {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [
+      "packages/cli/dist/cli.js",
+      "--help",
+    ]);
+
+    expect(stdout).toContain("Usage:");
+    expect(stdout).toContain("rpn32 '3 2 +'");
+    expect(stderr).toBe("");
+  });
+
+  test("prints version", async () => {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [
+      "packages/cli/dist/cli.js",
+      "--version",
+    ]);
+
+    expect(stdout).toBe("0.1.0\n");
+    expect(stderr).toBe("");
+  });
+
   test("evaluates a single quoted command-line expression", async () => {
     const { stdout, stderr } = await execFileAsync(process.execPath, [
       "packages/cli/dist/cli.js",

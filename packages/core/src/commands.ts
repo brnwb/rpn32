@@ -42,10 +42,7 @@ export function processToken(calc: RpnCalculator, token: string): void {
     "+": (a, b) => a.plus(b),
     "-": (a, b) => a.minus(b),
     "*": (a, b) => a.times(b),
-    x: (a, b) => a.times(b),
-    "×": (a, b) => a.times(b),
     "/": divide,
-    "÷": divide,
     "^": decimalPower,
     pow: decimalPower,
     mod: modulo,
@@ -72,32 +69,52 @@ export function processToken(calc: RpnCalculator, token: string): void {
 
   if (token in binaryOps) {
     calc.applyBinary(binaryOps[token]);
-  } else if (token in unaryOps) {
+    return;
+  }
+
+  if (token in unaryOps) {
     calc.applyUnary(unaryOps[token]);
-  } else if (token === "enter" || token === "dup") {
-    calc.enter();
-  } else if (token === "drop") {
-    calc.drop();
-  } else if (token === "clx") {
-    calc.clearX();
-  } else if (token === "swap" || token === "xy") {
-    calc.swap();
-  } else if (token === "clear" || token === "clr") {
-    calc.clear();
-  } else if (token === "lastx") {
-    calc.recallLastX();
-  } else if (token === "all") {
-    calc.display.mode = DisplayMode.All;
-  } else if (token === "deg") {
-    calc.setAngleMode(AngleMode.Deg);
-  } else if (token === "rad") {
-    calc.setAngleMode(AngleMode.Rad);
-  } else if (token === "pi") {
-    calc.pushNumber(PI);
-  } else if (token === "e") {
-    calc.pushNumber(E);
-  } else {
-    throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
+    return;
+  }
+
+  switch (token) {
+    case "enter":
+    case "dup":
+      calc.enter();
+      return;
+    case "drop":
+      calc.drop();
+      return;
+    case "clx":
+      calc.clearX();
+      return;
+    case "swap":
+    case "xy":
+      calc.swap();
+      return;
+    case "clear":
+      calc.clear();
+      return;
+    case "lastx":
+      calc.recallLastX();
+      return;
+    case "all":
+      calc.display.mode = DisplayMode.All;
+      return;
+    case "deg":
+      calc.setAngleMode(AngleMode.Deg);
+      return;
+    case "rad":
+      calc.setAngleMode(AngleMode.Rad);
+      return;
+    case "pi":
+      calc.pushNumber(PI);
+      return;
+    case "e":
+      calc.pushNumber(E);
+      return;
+    default:
+      throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
   }
 }
 

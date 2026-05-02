@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { argv, stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
 import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "@rpn32/core";
@@ -7,35 +8,46 @@ type ReplInterface = ReturnType<typeof createInterface> & { history: string[] };
 
 const HISTORY_SIZE = 1000;
 
-const HELP = `Commands:
+const HELP = `rpn32 — an HP 32SII-inspired RPN calculator
+
+Usage:
+  rpn32                 start interactive REPL
+  rpn32 '3 2 +'        evaluate one quoted RPN expression
+  echo '3 2 +' | rpn32 evaluate piped input
+  rpn32 --help         show this help
+  rpn32 --version      show version
+
+REPL commands:
   numbers         push values onto the stack, e.g. 3 2 +
   + - * / ^       arithmetic
-  sqrt sq !/fact mod abs int frac floor ceil round sin cos tan ln log exp chs 1/x
-  deg/rad         set trigonometry angle mode
-  enter/dup       duplicate X
+  sqrt sq ! fact mod abs int frac floor ceil round
+  sin cos tan ln log exp chs 1/x
+  deg rad         set trigonometry angle mode
+  enter           duplicate X with HP-style ENTER behavior
   lastx           recall the previous X value
-  swap/xy         swap X and Y
-  drop/clx        drop X
-  clear/clr       clear the stack
+  swap            swap X and Y
+  drop clx        drop/clear X
+  clear           clear the stack
   fix n           show n digits after the decimal point
   sci n           show scientific notation with n decimal places
   eng n           show engineering notation with n decimal places
   all             show compact 12-digit display
-  stack/on/full   always show all stack registers
-  stack off       return to compact stack display
+  stack           show all stack registers after each entry
+  stack off       return to compact display
   help            show this help
-  quit/exit/q     leave
+  quit            leave
 
 You can enter a whole expression on one line: 3 2 +
-Or use it like a calculator: enter 3, then 2, then + on separate prompts.
-
-Non-interactive usage:
-  rpn32 '3 2 +'
-  echo '3 2 +' | rpn32`;
+Or use it like a calculator: enter 3, then 2, then + on separate prompts.`;
 
 export async function main(args: string[] = argv.slice(2)): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.log(HELP);
+    return;
+  }
+
+  if (args.includes("--version") || args.includes("-v")) {
+    console.log(readVersion());
     return;
   }
 
@@ -93,19 +105,19 @@ async function runRepl(): Promise<void> {
       prompt(repl, calc);
       continue;
     }
-    if (command === "quit" || command === "exit" || command === "q") break;
-    if (command === "help" || command === "?") {
+    if (command === "quit") break;
+    if (command === "help") {
       console.log(HELP);
       prompt(repl, calc);
       continue;
     }
-    if (command === "stack" || command === "stack on" || command === "stack full") {
+    if (command === "stack") {
       fullStackDisplay = true;
       console.log(formatStack(calc.stack, calc.display, { full: true }));
       prompt(repl, calc);
       continue;
     }
-    if (command === "stack off" || command === "stack compact") {
+    if (command === "stack off") {
       fullStackDisplay = false;
       console.log(formatStack(calc.stack, calc.display, { full: false }));
       prompt(repl, calc);
@@ -147,6 +159,13 @@ async function readStdin(): Promise<string> {
     contents += chunk;
   }
   return contents;
+}
+
+function readVersion(): string {
+  const packageJson = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
+  return packageJson.version;
 }
 
 main().catch((error: unknown) => {
