@@ -121,7 +121,11 @@ function reciprocal(x: Decimal): Decimal {
   return new Decimal(1).div(x);
 }
 
-function setDisplayMode(calc: RpnCalculator, mode: "fix" | "sci" | "eng", digitsToken: string): void {
+function setDisplayMode(
+  calc: RpnCalculator,
+  mode: "fix" | "sci" | "eng",
+  digitsToken: string,
+): void {
   const digits = Number(digitsToken);
   if (!Number.isInteger(digits)) {
     throw new RpnError(`display digit count must be an integer: ${JSON.stringify(digitsToken)}`);

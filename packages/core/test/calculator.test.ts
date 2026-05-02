@@ -1,12 +1,22 @@
 import { Decimal } from "decimal.js";
 import { describe, expect, test } from "vitest";
 
-import { AngleMode, DisplayMode, RpnCalculator, ZERO, formatNumber, formatStack, processLine } from "../src/index.js";
+import {
+  AngleMode,
+  DisplayMode,
+  RpnCalculator,
+  ZERO,
+  formatNumber,
+  formatStack,
+  processLine,
+} from "../src/index.js";
 
 const d = (value: string | number): Decimal => new Decimal(value);
 
 const expectStack = (calc: RpnCalculator, expected: Decimal[]): void => {
-  expect(calc.stack.map((value) => value.toString())).toEqual(expected.map((value) => value.toString()));
+  expect(calc.stack.map((value) => value.toString())).toEqual(
+    expected.map((value) => value.toString()),
+  );
 };
 
 describe("RpnCalculator", () => {
@@ -124,7 +134,9 @@ describe("RpnCalculator", () => {
   test("invalid unary operation preserves stack", () => {
     const calc = new RpnCalculator();
     processLine(calc, "-1");
-    expect(() => processLine(calc, "sqrt")).toThrow("invalid operation (imaginary numbers not supported)");
+    expect(() => processLine(calc, "sqrt")).toThrow(
+      "invalid operation (imaginary numbers not supported)",
+    );
     expectStack(calc, [ZERO, ZERO, ZERO, d(-1)]);
   });
 
@@ -217,6 +229,8 @@ describe("RpnCalculator", () => {
   });
 
   test("format stack full", () => {
-    expect(formatStack([ZERO, ZERO, ZERO, d(7)], undefined, { full: true })).toBe("T: 0  Z: 0  Y: 0  X: 7");
+    expect(formatStack([ZERO, ZERO, ZERO, d(7)], undefined, { full: true })).toBe(
+      "T: 0  Z: 0  Y: 0  X: 7",
+    );
   });
 });

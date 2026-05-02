@@ -1,23 +1,28 @@
 {
   "name": "rpn32-monorepo",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "description": "A terminal RPN calculator inspired by the HP 32SII",
-  "type": "module",
+  "license": "MIT",
   "workspaces": [
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "build": "npm run build -w @rpn32/core && npm run build -w rpn32",
     "dev": "npm run build -w @rpn32/core && npm run dev -w rpn32",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
     "test": "vitest --run",
-    "check": "npm run build && npm run test"
+    "check": "npm run format:check && npm run lint && npm run build && npm run test"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "oxfmt": "^0.47.0",
+    "oxlint": "^1.62.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.14"
-  },
-  "license": "MIT"
+  }
 }

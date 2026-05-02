@@ -15,8 +15,11 @@ Run from the repository root:
 
 - `npm run dev`: build core and run the CLI
 - `npm run build`: build all packages
+- `npm run format`: format with oxfmt
+- `npm run format:check`: check formatting with oxfmt
+- `npm run lint`: lint with oxlint
 - `npm run test`: run tests
-- `npm run check`: build and test
+- `npm run check`: format check, lint, build, and test
 
 ## Guidelines
 

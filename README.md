@@ -133,8 +133,11 @@ packages/
 
 The CLI depends on `@rpn32/core`, so future interfaces like a TUI can use the same calculator engine without depending on the CLI.
 
-## Check
+## Development commands
 
 ```bash
-npm run check
+npm run format        # format with oxfmt
+npm run format:check  # check formatting with oxfmt
+npm run lint          # lint with oxlint
+npm run check         # format check, lint, build, and test
 ```
