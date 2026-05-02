@@ -2,7 +2,7 @@
 
 A terminal RPN calculator inspired by my favorite calculator, the HP 32SII. Written in TypeScript for Node.js.
 
-The calculator core uses `decimal.js` instead of JavaScript binary floating point, which makes decimal calculator-style arithmetic behave more like an HP calculator. It also uses a fixed four-level HP-style stack, `T Z Y X`, with stack lift, `ENTER`, and `lastx` behavior.
+The calculator core uses `decimal.js` instead of JavaScript binary floating point, which makes decimal calculator-style arithmetic behave more like an HP calculator. It also uses a fixed four-level HP-style stack, `T Z Y X`, with stack lift, `ENTER`, and `lastx` behavior. `lastx` is updated by numeric operations and preserved by stack/display/angle commands and invalid operations.
 
 This is _inspired_ by the 32SII, but not a perfect emulation.
 

@@ -94,6 +94,39 @@ describe("RpnCalculator", () => {
     expect(calc.x.eq(10)).toBe(true);
   });
 
+  test("stack, entry, display, and angle commands do not update lastx", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "8 2 /");
+    expect(calc.lastX.eq(2)).toBe(true);
+
+    processLine(calc, "9 enter 10 swap drop clx rad deg fix 2 all pi e");
+    expect(calc.lastX.eq(2)).toBe(true);
+  });
+
+  test("recalling lastx does not change lastx", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "8 2 / lastx");
+    expect(calc.x.eq(2)).toBe(true);
+    expect(calc.lastX.eq(2)).toBe(true);
+  });
+
+  test("invalid operations preserve lastx", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "8 2 / -1");
+    expect(calc.lastX.eq(2)).toBe(true);
+
+    expect(() => processLine(calc, "sqrt")).toThrow(
+      "invalid operation (imaginary numbers not supported)",
+    );
+    expect(calc.lastX.eq(2)).toBe(true);
+  });
+
+  test("clear resets lastx", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "8 2 / clear");
+    expect(calc.lastX.eq(0)).toBe(true);
+  });
+
   test("decimal arithmetic avoids binary floating point surprises", () => {
     const calc = new RpnCalculator();
     processLine(calc, "0.1 0.2 +");
