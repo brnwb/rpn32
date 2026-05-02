@@ -96,6 +96,30 @@ describe("RpnCalculator", () => {
     expect(calc.x.eq(9)).toBe(true);
   });
 
+  test("factorial", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("5 !");
+    expect(calc.x.eq(120)).toBe(true);
+  });
+
+  test("factorial word command", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("6 fact");
+    expect(calc.x.eq(720)).toBe(true);
+  });
+
+  test("factorial rejects non-integers", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("2.5");
+    expect(() => calc.processLine("!")).toThrow("factorial requires a non-negative integer");
+  });
+
+  test("factorial rejects negative integers", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("-1");
+    expect(() => calc.processLine("!")).toThrow("factorial requires a non-negative integer");
+  });
+
   test("unary and constants", () => {
     const calc = new RpnCalculator();
     calc.processLine("pi sin");

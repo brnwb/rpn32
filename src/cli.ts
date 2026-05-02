@@ -6,7 +6,7 @@ import { RpnCalculator, RpnError, formatStack } from "./calculator.js";
 const HELP = `Commands:
   numbers         push values onto the stack, e.g. 3 2 +
   + - * / ^       arithmetic
-  sqrt sq sin cos tan ln log exp chs 1/x
+  sqrt sq !/fact sin cos tan ln log exp chs 1/x
   enter/dup       duplicate X
   lastx           recall the previous X value
   swap/xy         swap X and Y

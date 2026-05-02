@@ -9,6 +9,7 @@ export {
   WORKING_PRECISION,
   ZERO,
   decimalPower,
+  factorial,
   formatNumber,
   formatStack,
   type DisplaySettings,

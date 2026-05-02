@@ -96,6 +96,8 @@ export class RpnCalculator {
     const unaryOps: Record<string, UnaryOp> = {
       sqrt: (x) => x.sqrt(),
       sq: (x) => x.times(x),
+      "!": factorial,
+      fact: factorial,
       sin: (x) => Decimal.sin(x),
       cos: (x) => Decimal.cos(x),
       tan: (x) => Decimal.tan(x),
@@ -239,6 +241,18 @@ function parseDecimal(token: string): Decimal | undefined {
 export function decimalPower(a: NumberValue, b: NumberValue): NumberValue {
   if (b.isInteger()) return a.pow(b.toNumber());
   return Decimal.pow(a, b);
+}
+
+export function factorial(value: NumberValue): NumberValue {
+  if (!value.isInteger() || value.isNegative()) {
+    throw new RpnError("factorial requires a non-negative integer");
+  }
+
+  let result = new Decimal(1);
+  for (let factor = 2; factor <= value.toNumber(); factor += 1) {
+    result = result.times(factor);
+  }
+  return result;
 }
 
 export function formatNumber(value: NumberValue, display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DIGITS }): string {
