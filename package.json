@@ -1,41 +1,23 @@
 {
-  "name": "rpn32",
+  "name": "rpn32-monorepo",
+  "private": true,
   "version": "0.1.0",
   "description": "A terminal RPN calculator inspired by the HP 32SII",
   "type": "module",
-  "bin": {
-    "rpn32": "dist/cli.js"
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
-    "dev": "tsx src/cli.ts",
-    "lint": "eslint .",
+    "build": "npm run build -w @rpn32/core && npm run build -w rpn32",
+    "dev": "npm run build -w @rpn32/core && npm run dev -w rpn32",
     "test": "vitest --run",
-    "check": "tsc --noEmit -p tsconfig.json && npm run test"
-  },
-  "dependencies": {
-    "decimal.js": "^10.6.0"
+    "check": "npm run build && npm run test"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.14"
-  },
-  "engines": {
-    "node": ">=20.6.0"
   },
   "license": "MIT"
 }

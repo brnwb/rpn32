@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
-import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "./index.js";
+import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "@rpn32/core";
 
 const HELP = `Commands:
   numbers         push values onto the stack, e.g. 3 2 +

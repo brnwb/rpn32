@@ -1,0 +1,28 @@
+{
+  "name": "rpn32",
+  "version": "0.1.0",
+  "description": "A terminal RPN calculator inspired by the HP 32SII",
+  "type": "module",
+  "bin": {
+    "rpn32": "dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@rpn32/core": "0.1.0"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.6.0"
+  }
+}

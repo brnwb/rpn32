@@ -1,0 +1,26 @@
+{
+  "name": "@rpn32/core",
+  "version": "0.1.0",
+  "description": "Core RPN calculator engine inspired by the HP 32SII",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest --run test"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0"
+  },
+  "license": "MIT"
+}

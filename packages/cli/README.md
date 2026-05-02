@@ -131,7 +131,7 @@ packages/
       cli.ts            Node readline REPL
 ```
 
-The CLI depends on `@rpn32/core`, so future interfaces like a TUI can use the same calculator engine without depending on the CLI.
+The CLI depends on `@rpn32/core`, so future interfaces like a TUI or Electron app can use the same calculator engine without depending on the CLI.
 
 ## Check
 
