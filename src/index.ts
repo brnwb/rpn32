@@ -1,4 +1,5 @@
 export {
+  AngleMode,
   DisplayMode,
   E,
   MAX_DISPLAY_DIGITS,

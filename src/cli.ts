@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
-import { RpnCalculator, RpnError, formatStack } from "./calculator.js";
+import { AngleMode, RpnCalculator, RpnError, formatStack } from "./calculator.js";
 
 const HELP = `Commands:
   numbers         push values onto the stack, e.g. 3 2 +
   + - * / ^       arithmetic
   sqrt sq !/fact sin cos tan ln log exp chs 1/x
+  deg/rad         set trigonometry angle mode
   enter/dup       duplicate X
   lastx           recall the previous X value
   swap/xy         swap X and Y
@@ -28,41 +29,41 @@ Or use it like a calculator: enter 3, then 2, then + on separate prompts.`;
 export async function main(): Promise<void> {
   const calc = new RpnCalculator();
   let fullStackDisplay = false;
-  const repl = createInterface({ input, output, prompt: "rpn> " });
+  const repl = createInterface({ input, output, prompt: promptFor(calc) });
 
   console.log("rpn32 — type 'help' for commands, 'quit' to exit");
   console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
-  repl.prompt();
+  prompt(repl, calc);
 
   for await (const line of repl) {
     const command = line.trim().toLowerCase();
 
     if (!command) {
       console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
-      repl.prompt();
+      prompt(repl, calc);
       continue;
     }
     if (command === "quit" || command === "exit" || command === "q") break;
     if (command === "help" || command === "?") {
       console.log(HELP);
-      repl.prompt();
+      prompt(repl, calc);
       continue;
     }
     if (command === "stack") {
       console.log(formatStack(calc.stack, calc.display, { full: true }));
-      repl.prompt();
+      prompt(repl, calc);
       continue;
     }
     if (command === "stack on" || command === "stack full") {
       fullStackDisplay = true;
       console.log(formatStack(calc.stack, calc.display, { full: true }));
-      repl.prompt();
+      prompt(repl, calc);
       continue;
     }
     if (command === "stack off" || command === "stack compact") {
       fullStackDisplay = false;
       console.log(formatStack(calc.stack, calc.display, { full: false }));
-      repl.prompt();
+      prompt(repl, calc);
       continue;
     }
 
@@ -79,10 +80,19 @@ export async function main(): Promise<void> {
     }
 
     console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
-    repl.prompt();
+    prompt(repl, calc);
   }
 
   repl.close();
+}
+
+function prompt(repl: ReturnType<typeof createInterface>, calc: RpnCalculator): void {
+  repl.setPrompt(promptFor(calc));
+  repl.prompt();
+}
+
+function promptFor(calc: RpnCalculator): string {
+  return calc.angleMode === AngleMode.Rad ? "rpn(rad)> " : "rpn> ";
 }
 
 main().catch((error: unknown) => {

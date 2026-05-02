@@ -37,6 +37,11 @@ export enum DisplayMode {
   Eng = "eng",
 }
 
+export enum AngleMode {
+  Deg = "deg",
+  Rad = "rad",
+}
+
 export interface DisplaySettings {
   mode: DisplayMode;
   digits: number;
@@ -47,6 +52,7 @@ export class RpnCalculator {
   liftEnabled = true;
   lastX: NumberValue = ZERO;
   display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DIGITS };
+  angleMode: AngleMode = AngleMode.Deg;
 
   /** Process a whitespace-separated line of RPN tokens. */
   processLine(line: string): void {
@@ -98,9 +104,9 @@ export class RpnCalculator {
       sq: (x) => x.times(x),
       "!": factorial,
       fact: factorial,
-      sin: (x) => Decimal.sin(x),
-      cos: (x) => Decimal.cos(x),
-      tan: (x) => Decimal.tan(x),
+      sin: (x) => Decimal.sin(this.toRadians(x)),
+      cos: (x) => Decimal.cos(this.toRadians(x)),
+      tan: (x) => Decimal.tan(this.toRadians(x)),
       ln: (x) => Decimal.ln(x),
       log: (x) => Decimal.log10(x),
       exp: (x) => Decimal.exp(x),
@@ -127,6 +133,10 @@ export class RpnCalculator {
       this.recallLastX();
     } else if (token === "all") {
       this.display.mode = DisplayMode.All;
+    } else if (token === "deg") {
+      this.angleMode = AngleMode.Deg;
+    } else if (token === "rad") {
+      this.angleMode = AngleMode.Rad;
     } else if (token === "pi") {
       this.pushNumber(PI);
     } else if (token === "e") {
@@ -216,6 +226,11 @@ export class RpnCalculator {
     this.lastX = this.x;
     this.stack[3] = op(this.x);
     this.liftEnabled = true;
+  }
+
+  private toRadians(value: NumberValue): NumberValue {
+    if (this.angleMode === AngleMode.Rad) return value;
+    return value.times(PI).div(180);
   }
 
   private binary(op: BinaryOp): void {

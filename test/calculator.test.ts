@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 import { describe, expect, test } from "vitest";
 
-import { DisplayMode, RpnCalculator, ZERO, formatNumber, formatStack } from "../src/index.js";
+import { AngleMode, DisplayMode, RpnCalculator, ZERO, formatNumber, formatStack } from "../src/index.js";
 
 const d = (value: string | number): Decimal => new Decimal(value);
 
@@ -120,10 +120,25 @@ describe("RpnCalculator", () => {
     expect(() => calc.processLine("!")).toThrow("factorial requires a non-negative integer");
   });
 
-  test("unary and constants", () => {
+  test("default trig angle mode is degrees", () => {
     const calc = new RpnCalculator();
-    calc.processLine("pi sin");
+    expect(calc.angleMode).toBe(AngleMode.Deg);
+    calc.processLine("90 sin");
+    expect(calc.x.toNumber()).toBeCloseTo(1, 14);
+  });
+
+  test("radian mode uses radians for trig", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("rad pi sin");
+    expect(calc.angleMode).toBe(AngleMode.Rad);
     expect(calc.x.toNumber()).toBeCloseTo(Math.sin(Math.PI), 14);
+  });
+
+  test("can switch from radians back to degrees", () => {
+    const calc = new RpnCalculator();
+    calc.processLine("rad deg 90 sin");
+    expect(calc.angleMode).toBe(AngleMode.Deg);
+    expect(calc.x.toNumber()).toBeCloseTo(1, 14);
   });
 
   test("display mode commands do not push the digit argument", () => {
