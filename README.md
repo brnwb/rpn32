@@ -1,10 +1,10 @@
 # rpn32
 
-A terminal RPN calculator inspired by the HP 32SII, written in TypeScript for Node.js.
+A terminal RPN calculator inspired by my favorite calculator, the HP 32SII. Written in TypeScript for Node.js.
 
 The calculator core uses `decimal.js` instead of JavaScript binary floating point, which makes decimal calculator-style arithmetic behave more like an HP calculator. It also uses a fixed four-level HP-style stack, `T Z Y X`, with stack lift, `ENTER`, and `lastx` behavior.
 
-This is closer to a 32SII, but not yet a perfect emulation.
+This is _inspired_ by the 32SII, but not a perfect emulation.
 
 ## Install dependencies
 
@@ -56,6 +56,44 @@ rpn> +
 5
 ```
 
+Show the full four-level stack with `stack`:
+
+```text
+rpn> 5 2 +
+7
+rpn> stack
+T: 0  Z: 0  Y: 0  X: 7
+rpn> 8
+T: 0  Z: 0  Y: 7  X: 8
+rpn> stack off
+8
+```
+
+Radian mode is shown in the prompt:
+
+```text
+rpn> rad
+0
+rpn(rad)> pi sin
+0
+rpn(rad)> deg
+0
+rpn>
+```
+
+Invalid operations preserve the stack and show a specific error when possible:
+
+```text
+rpn> -1
+-1
+rpn> sqrt
+error: invalid operation (imaginary numbers not supported)
+-1
+rpn> 1 0 /
+error: invalid operation (divide by zero)
+0
+```
+
 ## Current commands
 
 - Numbers push onto the stack
@@ -68,6 +106,22 @@ rpn> +
 - `stack off` to return to compact display
 - `pi`, `e`
 - `help`, `quit`
+
+## Project structure
+
+```text
+src/
+  cli.ts              Node readline REPL
+  index.ts            public package exports
+  core/
+    calculator.ts     HP-style stack/state behavior
+    commands.ts       token parsing and command execution
+    display.ts        display formatting and stack rendering
+    errors.ts         RPN error types
+    math.ts           math helpers like factorial and power
+    numbers.ts        Decimal setup and constants
+    settings.ts       display and angle settings
+```
 
 ## Check
 
