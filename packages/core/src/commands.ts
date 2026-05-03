@@ -17,6 +17,16 @@ export function processLine(calc: RpnCalculator, line: string): void {
 }
 
 export function processTokens(calc: RpnCalculator, tokens: Iterable<string>): void {
+  const snapshot = takeSnapshot(calc);
+  try {
+    processTokensUnchecked(calc, tokens);
+  } catch (error) {
+    restoreSnapshot(calc, snapshot);
+    throw error;
+  }
+}
+
+function processTokensUnchecked(calc: RpnCalculator, tokens: Iterable<string>): void {
   const tokenList = Array.from(tokens);
   let index = 0;
   while (index < tokenList.length) {
@@ -123,6 +133,32 @@ export function processToken(calc: RpnCalculator, token: string): void {
     default:
       throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
   }
+}
+
+function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {
+  return {
+    angleMode: calc.angleMode,
+    display: { ...calc.display },
+    lastX: calc.lastX,
+    liftEnabled: calc.liftEnabled,
+    stack: [...calc.stack],
+  };
+}
+
+function restoreSnapshot(calc: RpnCalculator, snapshot: RpnCalculatorSnapshot): void {
+  calc.angleMode = snapshot.angleMode;
+  calc.display = { ...snapshot.display };
+  calc.lastX = snapshot.lastX;
+  calc.liftEnabled = snapshot.liftEnabled;
+  calc.stack = [...snapshot.stack];
+}
+
+interface RpnCalculatorSnapshot {
+  angleMode: AngleMode;
+  display: RpnCalculator["display"];
+  lastX: RpnCalculator["lastX"];
+  liftEnabled: boolean;
+  stack: RpnCalculator["stack"];
 }
 
 function decimalPower(a: Decimal, b: Decimal): Decimal {

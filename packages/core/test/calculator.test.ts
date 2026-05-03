@@ -133,6 +133,22 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("0.3");
   });
 
+  test("unknown token rolls back the whole input line", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "20");
+
+    expect(() => processLine(calc, "clear x")).toThrow('unknown token: "x"');
+    expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
+  test("invalid operation rolls back the whole input line", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "20");
+
+    expect(() => processLine(calc, "1 0 /")).toThrow("invalid operation (divide by zero)");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
   test("square", () => {
     const calc = new RpnCalculator();
     processLine(calc, "3 sq");
