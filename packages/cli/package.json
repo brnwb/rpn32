@@ -20,7 +20,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@rpn32/core": "0.1.0"
+    "@brnwb/rpn32-core": "0.1.0"
   },
   "engines": {
     "node": ">=20.6.0"

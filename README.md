@@ -139,7 +139,7 @@ This is an npm workspace monorepo with the reusable calculator engine separated 
 
 ```text
 packages/
-  core/                 @rpn32/core
+  core/                 @brnwb/rpn32-core
     src/
       calculator.ts     HP-style stack/state, Decimal setup, settings, and errors
       commands.ts       token parsing, command execution, and math helpers
@@ -153,7 +153,7 @@ packages/
       cli.ts            Node readline REPL
 ```
 
-The CLI depends on `@rpn32/core`; calculator behavior belongs in the core package, while terminal behavior belongs in the CLI package.
+The CLI depends on `@brnwb/rpn32-core`; calculator behavior belongs in the core package, while terminal behavior belongs in the CLI package.
 
 ## Development commands
 

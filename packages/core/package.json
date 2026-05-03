@@ -1,5 +1,5 @@
 {
-  "name": "@rpn32/core",
+  "name": "@brnwb/rpn32-core",
   "version": "0.1.0",
   "description": "Core RPN calculator engine inspired by the HP 32SII",
   "license": "MIT",

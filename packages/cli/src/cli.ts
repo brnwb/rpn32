@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { argv, stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
-import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "@rpn32/core";
+import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "@brnwb/rpn32-core";
 
 type ReplInterface = ReturnType<typeof createInterface> & { history: string[] };
 

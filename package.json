@@ -9,8 +9,8 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "npm run build -w @rpn32/core && npm run build -w rpn32",
-    "dev": "npm run build -w @rpn32/core && npm run dev -w rpn32",
+    "build": "npm run build -w @brnwb/rpn32-core && npm run build -w rpn32",
+    "dev": "npm run build -w @brnwb/rpn32-core && npm run dev -w rpn32",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
