@@ -1,9 +1,16 @@
 import { Decimal } from "decimal.js";
-import { RpnError } from "./errors.js";
-import { decimalPower, factorial, type BinaryOp, type UnaryOp } from "./math.js";
-import { E, PI, parseDecimal } from "./numbers.js";
-import { RpnCalculator, trigOps } from "./calculator.js";
-import { AngleMode, DisplayMode, MAX_DISPLAY_DIGITS } from "./settings.js";
+import {
+  AngleMode,
+  DisplayMode,
+  E,
+  MAX_DISPLAY_DIGITS,
+  PI,
+  RpnCalculator,
+  RpnError,
+  parseDecimal,
+  type BinaryOp,
+  type UnaryOp,
+} from "./calculator.js";
 
 export function processLine(calc: RpnCalculator, line: string): void {
   processTokens(calc, line.split(/\s+/).filter(Boolean));
@@ -116,6 +123,31 @@ export function processToken(calc: RpnCalculator, token: string): void {
     default:
       throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
   }
+}
+
+function decimalPower(a: Decimal, b: Decimal): Decimal {
+  if (b.isInteger()) return a.pow(b.toNumber());
+  return Decimal.pow(a, b);
+}
+
+function factorial(value: Decimal): Decimal {
+  if (!value.isInteger() || value.isNegative()) {
+    throw new RpnError("factorial requires a non-negative integer");
+  }
+
+  let result = new Decimal(1);
+  for (let factor = 2; factor <= value.toNumber(); factor += 1) {
+    result = result.times(factor);
+  }
+  return result;
+}
+
+function trigOps(calc: RpnCalculator): Pick<Record<string, UnaryOp>, "sin" | "cos" | "tan"> {
+  return {
+    sin: (x) => Decimal.sin(calc.toRadians(x)),
+    cos: (x) => Decimal.cos(calc.toRadians(x)),
+    tan: (x) => Decimal.tan(calc.toRadians(x)),
+  };
 }
 
 function divide(a: Decimal, b: Decimal): Decimal {

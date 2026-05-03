@@ -1,8 +1,60 @@
 import { Decimal } from "decimal.js";
-import { RpnError, StackUnderflowError } from "./errors.js";
-import { type BinaryOp, type UnaryOp } from "./math.js";
-import { PI, ZERO, type NumberValue } from "./numbers.js";
-import { AngleMode, DisplayMode, MAX_DISPLAY_DIGITS, type DisplaySettings } from "./settings.js";
+
+// The HP 32SII displays 12 significant digits and keeps a few guard digits
+// internally. This is not a perfect emulation, but Decimal gets us much closer
+// than JavaScript's binary floating point for calculator-style arithmetic.
+export const WORKING_PRECISION = 15;
+export const MAX_DISPLAY_DIGITS = 11;
+
+Decimal.set({ precision: WORKING_PRECISION, rounding: Decimal.ROUND_HALF_UP });
+
+export type NumberValue = Decimal;
+export type UnaryOp = (x: NumberValue) => NumberValue;
+export type BinaryOp = (a: NumberValue, b: NumberValue) => NumberValue;
+
+export const PI = new Decimal("3.14159265358979");
+export const E = new Decimal("2.71828182845905");
+export const ZERO = new Decimal(0);
+
+export enum DisplayMode {
+  All = "all",
+  Fix = "fix",
+  Sci = "sci",
+  Eng = "eng",
+}
+
+export enum AngleMode {
+  Deg = "deg",
+  Rad = "rad",
+}
+
+export interface DisplaySettings {
+  mode: DisplayMode;
+  digits: number;
+}
+
+export class RpnError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RpnError";
+  }
+}
+
+export class StackUnderflowError extends RpnError {
+  constructor(message: string) {
+    super(message);
+    this.name = "StackUnderflowError";
+  }
+}
+
+export function parseDecimal(token: string): NumberValue | undefined {
+  try {
+    const value = new Decimal(token);
+    return value.isFinite() ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export class RpnCalculator {
   stack: NumberValue[] = [ZERO, ZERO, ZERO, ZERO];
@@ -151,12 +203,4 @@ export class RpnCalculator {
 function nonFiniteResultMessage(result: NumberValue): string {
   if (!result.isNaN()) return "invalid operation (overflow)";
   return "invalid operation";
-}
-
-export function trigOps(calc: RpnCalculator): Pick<Record<string, UnaryOp>, "sin" | "cos" | "tan"> {
-  return {
-    sin: (x) => Decimal.sin(calc.toRadians(x)),
-    cos: (x) => Decimal.cos(calc.toRadians(x)),
-    tan: (x) => Decimal.tan(calc.toRadians(x)),
-  };
 }

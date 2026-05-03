@@ -141,13 +141,9 @@ This is an npm workspace monorepo with the reusable calculator engine separated 
 packages/
   core/                 @rpn32/core
     src/
-      calculator.ts     HP-style stack/state behavior
-      commands.ts       token parsing and command execution
+      calculator.ts     HP-style stack/state, Decimal setup, settings, and errors
+      commands.ts       token parsing, command execution, and math helpers
       display.ts        display formatting and stack rendering
-      errors.ts         RPN error types
-      math.ts           math helpers like factorial and power
-      numbers.ts        Decimal setup and constants
-      settings.ts       display and angle settings
       index.ts          public core exports
     test/
       calculator.test.ts
@@ -157,7 +153,7 @@ packages/
       cli.ts            Node readline REPL
 ```
 
-The CLI depends on `@rpn32/core`, so future interfaces like a TUI can use the same calculator engine without depending on the CLI.
+The CLI depends on `@rpn32/core`; calculator behavior belongs in the core package, while terminal behavior belongs in the CLI package.
 
 ## Development commands
 

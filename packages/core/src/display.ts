@@ -1,7 +1,12 @@
 import { Decimal } from "decimal.js";
-import { RpnError } from "./errors.js";
-import { MAX_DISPLAY_DIGITS, type DisplaySettings, DisplayMode } from "./settings.js";
-import { ZERO, type NumberValue } from "./numbers.js";
+import {
+  DisplayMode,
+  MAX_DISPLAY_DIGITS,
+  RpnError,
+  ZERO,
+  type DisplaySettings,
+  type NumberValue,
+} from "./calculator.js";
 
 export function formatNumber(
   value: NumberValue,
