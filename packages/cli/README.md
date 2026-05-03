@@ -6,7 +6,20 @@ The calculator core uses `decimal.js` instead of JavaScript binary floating poin
 
 This is _inspired_ by the 32SII, but not a perfect emulation.
 
-## Install dependencies
+## Install
+
+```bash
+npm install -g rpn32
+```
+
+Then run:
+
+```bash
+rpn32 '3 2 +'
+# 5
+```
+
+## Development setup
 
 ```bash
 npm install
