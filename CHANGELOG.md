@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-05-03
+
+- Renamed CLI npm package from `rpn32` to `@brnwb/rpn32`.
+- Added npm package repository, homepage, and issue tracker metadata.
+
 ## 0.1.0 - 2026-05-03
 
 - Initial npm release.

@@ -7,7 +7,7 @@
 ## Packages
 
 - `packages/core`: reusable calculator engine. No Node terminal/readline APIs here.
-- `packages/cli`: Node readline CLI. Depends on `@brnwb/rpn32-core`.
+- `packages/cli`: Node readline CLI published as `@brnwb/rpn32`. Depends on `@brnwb/rpn32-core`.
 
 ## Commands
 

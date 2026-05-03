@@ -1,8 +1,17 @@
 {
   "name": "@brnwb/rpn32-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core RPN calculator engine inspired by the HP 32SII",
+  "homepage": "https://github.com/brnwb/rpn32#readme",
+  "bugs": {
+    "url": "https://github.com/brnwb/rpn32/issues"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brnwb/rpn32.git",
+    "directory": "packages/core"
+  },
   "files": [
     "dist",
     "README.md"

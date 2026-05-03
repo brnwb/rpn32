@@ -1,8 +1,17 @@
 {
-  "name": "rpn32",
-  "version": "0.1.0",
+  "name": "@brnwb/rpn32",
+  "version": "0.1.1",
   "description": "A terminal RPN calculator inspired by the HP 32SII",
+  "homepage": "https://github.com/brnwb/rpn32#readme",
+  "bugs": {
+    "url": "https://github.com/brnwb/rpn32/issues"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brnwb/rpn32.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "rpn32": "dist/cli.js"
   },
@@ -21,7 +30,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@brnwb/rpn32-core": "0.1.0"
+    "@brnwb/rpn32-core": "0.1.1"
   },
   "engines": {
     "node": ">=20.6.0"

@@ -9,7 +9,7 @@ This is _inspired_ by the 32SII, but not a perfect emulation.
 ## Install
 
 ```bash
-npm install -g rpn32
+npm install -g @brnwb/rpn32
 ```
 
 Then run:
@@ -161,7 +161,7 @@ packages/
     test/
       calculator.test.ts
 
-  cli/                  rpn32
+  cli/                  @brnwb/rpn32
     src/
       cli.ts            Node readline REPL
 ```
