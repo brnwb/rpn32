@@ -216,23 +216,48 @@ describe("RpnCalculator", () => {
     expectStack(calc, [ZERO, ZERO, d(-12), d("-0.345")]);
   });
 
-  test("floor ceiling and round", () => {
+  test("floor and ceiling", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "12.6 floor 12.1 ceil 12.5 round");
-    expectStack(calc, [ZERO, d(12), d(13), d(13)]);
+    processLine(calc, "12.6 floor 12.1 ceil");
+    expectStack(calc, [ZERO, ZERO, d(12), d(13)]);
+  });
+
+  test("rnd rounds X internally according to fixed display format", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "12.3456 fix 2 rnd");
+    expect(calc.x.toString()).toBe("12.35");
+  });
+
+  test("rnd rounds X internally according to scientific display format", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "12.3456 sci 3 rnd");
+    expect(calc.x.toString()).toBe("12.35");
+  });
+
+  test("round is an alias for rnd", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "12.3456 fix 2 round");
+    expect(calc.x.toString()).toBe("12.35");
   });
 
   test("factorial rejects non-integers", () => {
     const calc = new RpnCalculator();
     processLine(calc, "2.5");
-    expect(() => processLine(calc, "!")).toThrow("factorial requires a non-negative integer");
+    expect(() => processLine(calc, "!")).toThrow("factorial requires an integer from 0 to 253");
   });
 
   test("factorial rejects negative integers", () => {
     const calc = new RpnCalculator();
     processLine(calc, "-1");
-    expect(() => processLine(calc, "!")).toThrow("factorial requires a non-negative integer");
+    expect(() => processLine(calc, "!")).toThrow("factorial requires an integer from 0 to 253");
     expectStack(calc, [ZERO, ZERO, ZERO, d(-1)]);
+  });
+
+  test("factorial rejects values above the HP 32SII range", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "254");
+    expect(() => processLine(calc, "!")).toThrow("factorial requires an integer from 0 to 253");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(254)]);
   });
 
   test("invalid unary operation preserves stack", () => {
@@ -350,6 +375,18 @@ describe("RpnCalculator", () => {
     const negative = new RpnCalculator();
     processLine(negative, "-2.345 fix 2");
     expect(formatStack(negative.stack, negative.display)).toBe("-2.35");
+  });
+
+  test("fixed display falls back to scientific notation for very small values", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0.000042 fix 4");
+    expect(formatStack(calc.stack, calc.display)).toBe("4.2000e-5");
+  });
+
+  test("fixed display falls back to scientific notation for values too wide for fixed", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1234567890123 fix 2");
+    expect(formatStack(calc.stack, calc.display)).toBe("1.23e+12");
   });
 
   test("engineering display handles small numbers", () => {

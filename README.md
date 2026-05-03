@@ -134,7 +134,7 @@ error: invalid operation (divide by zero)
 
 - Numbers push onto the stack
 - Arithmetic: `+ - * / ^`
-- Math: `sqrt sq ! fact mod abs int frac floor ceil round`
+- Math: `sqrt sq ! fact mod abs int frac floor ceil rnd round`
 - Trig/log/exponential: `sin cos tan ln log exp`
 - Other numeric functions: `chs 1/x`
 - Angle modes: `deg`, `rad`

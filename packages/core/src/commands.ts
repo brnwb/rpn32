@@ -1,6 +1,7 @@
 import { Decimal } from "decimal.js";
 import {
   AngleMode,
+  DISPLAY_SIGNIFICANT_DIGITS,
   DisplayMode,
   E,
   MAX_DISPLAY_DECIMAL_PLACES,
@@ -78,7 +79,8 @@ export function processToken(calc: RpnCalculator, token: string): void {
     frac: fractionalPart,
     floor: (x) => x.floor(),
     ceil: (x) => x.ceil(),
-    round: (x) => x.round(),
+    rnd: (x) => roundToDisplay(x, calc.display),
+    round: (x) => roundToDisplay(x, calc.display),
     chs: (x) => x.neg(),
     neg: (x) => x.neg(),
     "1/x": reciprocal,
@@ -167,8 +169,8 @@ function decimalPower(a: Decimal, b: Decimal): Decimal {
 }
 
 function factorial(value: Decimal): Decimal {
-  if (!value.isInteger() || value.isNegative()) {
-    throw new RpnError("factorial requires a non-negative integer");
+  if (!value.isInteger() || value.isNegative() || value.gt(253)) {
+    throw new RpnError("factorial requires an integer from 0 to 253");
   }
 
   let result = new Decimal(1);
@@ -176,6 +178,18 @@ function factorial(value: Decimal): Decimal {
     result = result.times(factor);
   }
   return result;
+}
+
+function roundToDisplay(value: Decimal, display: RpnCalculator["display"]): Decimal {
+  switch (display.mode) {
+    case DisplayMode.Fix:
+      return new Decimal(value.toFixed(display.digits));
+    case DisplayMode.Sci:
+    case DisplayMode.Eng:
+      return value.toSignificantDigits(display.digits + 1);
+    case DisplayMode.All:
+      return value.toSignificantDigits(DISPLAY_SIGNIFICANT_DIGITS);
+  }
 }
 
 function trigOps(calc: RpnCalculator): Pick<Record<string, UnaryOp>, "sin" | "cos" | "tan"> {

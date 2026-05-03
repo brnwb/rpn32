@@ -13,10 +13,20 @@ export function formatNumber(
   value: NumberValue,
   display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES },
 ): string {
-  if (display.mode === DisplayMode.Fix) return value.toFixed(display.digits);
+  if (display.mode === DisplayMode.Fix) return formatFixed(value, display.digits);
   if (display.mode === DisplayMode.Sci) return formatScientific(value, display.digits);
   if (display.mode === DisplayMode.Eng) return formatEngineering(value, display.digits);
   return formatAll(value);
+}
+
+function formatFixed(value: NumberValue, digits: number): string {
+  const text = value.toFixed(digits);
+  const rounded = new Decimal(text);
+  const digitCount = text.replace("-", "").replace(".", "").length;
+  if ((!value.isZero() && rounded.isZero()) || digitCount > DISPLAY_SIGNIFICANT_DIGITS) {
+    return formatScientific(value, digits);
+  }
+  return text;
 }
 
 function formatAll(value: NumberValue): string {

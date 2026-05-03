@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 - 2026-05-03
+
+- Changed `round` to use HP-style display-format rounding.
+- Added `rnd` as the preferred HP-style rounding command.
+- Added HP-style factorial bounds for integers from 0 through 253.
+- Improved FIX display fallback to scientific notation for very small or too-wide values.
+
 ## 0.1.2 - 2026-05-03
 
 - Clarified internal precision and display precision constants.

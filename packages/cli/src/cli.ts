@@ -20,7 +20,7 @@ Usage:
 REPL commands:
   numbers         push values onto the stack, e.g. 3 2 +
   + - * / ^       arithmetic
-  sqrt sq ! fact mod abs int frac floor ceil round
+  sqrt sq ! fact mod abs int frac floor ceil rnd round
   sin cos tan ln log exp chs 1/x
   deg rad         set trigonometry angle mode
   enter           duplicate X with HP-style ENTER behavior
