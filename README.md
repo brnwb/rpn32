@@ -168,6 +168,10 @@ packages/
 
 The CLI depends on `@brnwb/rpn32-core`; calculator behavior belongs in the core package, while terminal behavior belongs in the CLI package.
 
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for release notes.
+
 ## Development commands
 
 ```bash
