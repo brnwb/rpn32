@@ -3,10 +3,11 @@ import { Decimal } from "decimal.js";
 // The HP 32SII displays 12 significant digits and keeps a few guard digits
 // internally. This is not a perfect emulation, but Decimal gets us much closer
 // than JavaScript's binary floating point for calculator-style arithmetic.
-export const WORKING_PRECISION = 15;
-export const MAX_DISPLAY_DIGITS = 11;
+export const INTERNAL_PRECISION = 15;
+export const DISPLAY_SIGNIFICANT_DIGITS = 12;
+export const MAX_DISPLAY_DECIMAL_PLACES = DISPLAY_SIGNIFICANT_DIGITS - 1;
 
-Decimal.set({ precision: WORKING_PRECISION, rounding: Decimal.ROUND_HALF_UP });
+Decimal.set({ precision: INTERNAL_PRECISION, rounding: Decimal.ROUND_HALF_UP });
 
 export type NumberValue = Decimal;
 export type UnaryOp = (x: NumberValue) => NumberValue;
@@ -60,7 +61,7 @@ export class RpnCalculator {
   stack: NumberValue[] = [ZERO, ZERO, ZERO, ZERO];
   liftEnabled = true;
   lastX: NumberValue = ZERO;
-  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DIGITS };
+  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES };
   angleMode: AngleMode = AngleMode.Deg;
 
   get x(): NumberValue {

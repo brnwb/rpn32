@@ -1,6 +1,6 @@
 {
   "name": "@brnwb/rpn32",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A terminal RPN calculator inspired by the HP 32SII",
   "homepage": "https://github.com/brnwb/rpn32#readme",
   "bugs": {
@@ -30,7 +30,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@brnwb/rpn32-core": "0.1.1"
+    "@brnwb/rpn32-core": "0.1.2"
   },
   "engines": {
     "node": ">=20.6.0"

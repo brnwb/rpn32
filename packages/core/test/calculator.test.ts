@@ -133,6 +133,31 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("0.3");
   });
 
+  test("decimal arithmetic keeps common decimal sums exact", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0.1 0.2 + 0.3 -");
+    expect(calc.x.toString()).toBe("0");
+  });
+
+  test("division and multiplication round consistently at internal precision", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 3 / 3 *");
+    expect(calc.x.toString()).toBe("0.999999999999999");
+  });
+
+  test("integer powers stay exact within internal precision", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "2 10 ^");
+    expect(calc.x.toString()).toBe("1024");
+  });
+
+  test("negative base fractional power is rejected and preserves stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "-8 0.333333333333333");
+    expect(() => processLine(calc, "^")).toThrow("invalid operation");
+    expectStack(calc, [ZERO, ZERO, d(-8), d("0.333333333333333")]);
+  });
+
   test("unknown token rolls back the whole input line", () => {
     const calc = new RpnCalculator();
     processLine(calc, "20");
@@ -275,6 +300,20 @@ describe("RpnCalculator", () => {
     expect(calc.x.toNumber()).toBeCloseTo(1, 14);
   });
 
+  test("trig regression values in degrees", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "90 sin 180 cos 45 tan");
+    expect(calc.z.toNumber()).toBeCloseTo(1, 14);
+    expect(calc.y.toNumber()).toBeCloseTo(-1, 14);
+    expect(calc.x.toNumber()).toBeCloseTo(1, 14);
+  });
+
+  test("radian trig regression value", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "rad pi cos");
+    expect(calc.x.toNumber()).toBeCloseTo(-1, 14);
+  });
+
   test("display mode commands do not push the digit argument", () => {
     const calc = new RpnCalculator();
     processLine(calc, "10 3 / fix 2");
@@ -301,6 +340,22 @@ describe("RpnCalculator", () => {
     processLine(calc, "5 fix 2 all");
     expect(calc.display.mode).toBe(DisplayMode.All);
     expect(formatStack(calc.stack, calc.display)).toBe("5");
+  });
+
+  test("fixed display rounds positive and negative values", () => {
+    const positive = new RpnCalculator();
+    processLine(positive, "2.345 fix 2");
+    expect(formatStack(positive.stack, positive.display)).toBe("2.35");
+
+    const negative = new RpnCalculator();
+    processLine(negative, "-2.345 fix 2");
+    expect(formatStack(negative.stack, negative.display)).toBe("-2.35");
+  });
+
+  test("engineering display handles small numbers", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0.00123 eng 3");
+    expect(formatStack(calc.stack, calc.display)).toBe("1.230e-3");
   });
 
   test("format number trims trailing decimal zeroes", () => {

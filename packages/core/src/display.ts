@@ -1,7 +1,8 @@
 import { Decimal } from "decimal.js";
 import {
+  DISPLAY_SIGNIFICANT_DIGITS,
   DisplayMode,
-  MAX_DISPLAY_DIGITS,
+  MAX_DISPLAY_DECIMAL_PLACES,
   RpnError,
   ZERO,
   type DisplaySettings,
@@ -10,7 +11,7 @@ import {
 
 export function formatNumber(
   value: NumberValue,
-  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DIGITS },
+  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES },
 ): string {
   if (display.mode === DisplayMode.Fix) return value.toFixed(display.digits);
   if (display.mode === DisplayMode.Sci) return formatScientific(value, display.digits);
@@ -20,7 +21,7 @@ export function formatNumber(
 
 function formatAll(value: NumberValue): string {
   if (value.isZero()) return "0";
-  const text = value.toSignificantDigits(12).toString();
+  const text = value.toSignificantDigits(DISPLAY_SIGNIFICANT_DIGITS).toString();
   if (text.includes("e")) {
     const [mantissa, exponent] = text.split("e");
     return `${stripTrailingDecimalZeros(mantissa ?? "0")}e${formatExponent(Number(exponent ?? 0))}`;
@@ -58,7 +59,7 @@ function stripTrailingDecimalZeros(text: string): string {
 
 export function formatStack(
   stack: readonly NumberValue[],
-  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DIGITS },
+  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES },
   options: { full?: boolean } = {},
 ): string {
   if (stack.length !== 4) throw new RpnError("expected a four-level stack: T Z Y X");

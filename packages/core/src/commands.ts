@@ -3,7 +3,7 @@ import {
   AngleMode,
   DisplayMode,
   E,
-  MAX_DISPLAY_DIGITS,
+  MAX_DISPLAY_DECIMAL_PLACES,
   PI,
   RpnCalculator,
   RpnError,
@@ -231,8 +231,8 @@ function setDisplayMode(
   if (!Number.isInteger(digits)) {
     throw new RpnError(`display digit count must be an integer: ${JSON.stringify(digitsToken)}`);
   }
-  if (digits < 0 || digits > MAX_DISPLAY_DIGITS) {
-    throw new RpnError(`display digit count must be from 0 to ${MAX_DISPLAY_DIGITS}`);
+  if (digits < 0 || digits > MAX_DISPLAY_DECIMAL_PLACES) {
+    throw new RpnError(`display digit count must be from 0 to ${MAX_DISPLAY_DECIMAL_PLACES}`);
   }
 
   calc.setDisplayMode(mode as DisplayMode, digits);

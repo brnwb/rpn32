@@ -22,7 +22,7 @@ describe("rpn32 CLI", () => {
       "--version",
     ]);
 
-    expect(stdout).toBe("0.1.1\n");
+    expect(stdout).toBe("0.1.2\n");
     expect(stderr).toBe("");
   });
 
