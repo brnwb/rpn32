@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+## 0.1.4 - 2026-05-03
+
+- Added `grad` angle mode for trigonometry.
+- Added inverse trigonometric functions: `asin`, `acos`, and `atan`.
+- Added hyperbolic functions: `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, and `atanh`.
+
 ## 0.1.3 - 2026-05-03
 
 - Changed `round` to use HP-style display-format rounding.

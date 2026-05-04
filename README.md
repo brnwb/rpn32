@@ -105,14 +105,16 @@ rpn> stack off
 8
 ```
 
-Radian mode is shown in the prompt:
+Non-degree angle modes are shown in the prompt:
 
 ```text
 rpn> rad
 0
 rpn(rad)> pi sin
 0
-rpn(rad)> deg
+rpn(rad)> grad
+0
+rpn(grad)> deg
 0
 rpn>
 ```
@@ -135,9 +137,9 @@ error: invalid operation (divide by zero)
 - Numbers push onto the stack
 - Arithmetic: `+ - * / ^`
 - Math: `sqrt sq ! fact mod abs int frac floor ceil rnd round`
-- Trig/log/exponential: `sin cos tan ln log exp`
+- Trig/log/exponential: `sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh ln log exp`
 - Other numeric functions: `chs 1/x`
-- Angle modes: `deg`, `rad`
+- Angle modes: `deg`, `rad`, `grad`
 - Stack: `enter`, `lastx`, `swap`, `drop`, `clx`, `clear`
 - Display modes: `fix n`, `sci n`, `eng n`, `all`
 - Full stack display: `stack`, `stack off`

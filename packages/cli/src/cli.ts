@@ -21,8 +21,9 @@ REPL commands:
   numbers         push values onto the stack, e.g. 3 2 +
   + - * / ^       arithmetic
   sqrt sq ! fact mod abs int frac floor ceil rnd round
-  sin cos tan ln log exp chs 1/x
-  deg rad         set trigonometry angle mode
+  sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh
+  ln log exp chs 1/x
+  deg rad grad    set trigonometry angle mode
   enter           duplicate X with HP-style ENTER behavior
   lastx           recall the previous X value
   swap            swap X and Y
@@ -149,7 +150,9 @@ function prompt(repl: ReplInterface, calc: RpnCalculator): void {
 }
 
 function promptFor(calc: RpnCalculator): string {
-  return calc.angleMode === AngleMode.Rad ? "rpn(rad)> " : "rpn> ";
+  if (calc.angleMode === AngleMode.Rad) return "rpn(rad)> ";
+  if (calc.angleMode === AngleMode.Grad) return "rpn(grad)> ";
+  return "rpn> ";
 }
 
 async function readStdin(): Promise<string> {

@@ -13,6 +13,7 @@ describe("rpn32 CLI", () => {
 
     expect(stdout).toContain("Usage:");
     expect(stdout).toContain("rpn32 '3 2 +'");
+    expect(stdout).toContain("deg rad grad");
     expect(stderr).toBe("");
   });
 
@@ -22,7 +23,7 @@ describe("rpn32 CLI", () => {
       "--version",
     ]);
 
-    expect(stdout).toBe("0.1.3\n");
+    expect(stdout).toBe("0.1.4\n");
     expect(stderr).toBe("");
   });
 

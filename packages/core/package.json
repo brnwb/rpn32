@@ -1,6 +1,6 @@
 {
   "name": "@brnwb/rpn32-core",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Core RPN calculator engine inspired by the HP 32SII",
   "homepage": "https://github.com/brnwb/rpn32#readme",
   "bugs": {

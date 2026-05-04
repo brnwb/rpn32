@@ -27,6 +27,7 @@ export enum DisplayMode {
 export enum AngleMode {
   Deg = "deg",
   Rad = "rad",
+  Grad = "grad",
 }
 
 export interface DisplaySettings {
@@ -179,7 +180,14 @@ export class RpnCalculator {
 
   toRadians(value: NumberValue): NumberValue {
     if (this.angleMode === AngleMode.Rad) return value;
+    if (this.angleMode === AngleMode.Grad) return value.times(PI).div(200);
     return value.times(PI).div(180);
+  }
+
+  fromRadians(value: NumberValue): NumberValue {
+    if (this.angleMode === AngleMode.Rad) return value;
+    if (this.angleMode === AngleMode.Grad) return value.times(200).div(PI);
+    return value.times(180).div(PI);
   }
 
   requireStackDepth(count: number): void {

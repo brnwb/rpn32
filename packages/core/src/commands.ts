@@ -126,6 +126,9 @@ export function processToken(calc: RpnCalculator, token: string): void {
     case "rad":
       calc.setAngleMode(AngleMode.Rad);
       return;
+    case "grad":
+      calc.setAngleMode(AngleMode.Grad);
+      return;
     case "pi":
       calc.pushNumber(PI);
       return;
@@ -192,12 +195,56 @@ function roundToDisplay(value: Decimal, display: RpnCalculator["display"]): Deci
   }
 }
 
-function trigOps(calc: RpnCalculator): Pick<Record<string, UnaryOp>, "sin" | "cos" | "tan"> {
+function trigOps(
+  calc: RpnCalculator,
+): Pick<
+  Record<string, UnaryOp>,
+  | "sin"
+  | "cos"
+  | "tan"
+  | "asin"
+  | "acos"
+  | "atan"
+  | "sinh"
+  | "cosh"
+  | "tanh"
+  | "asinh"
+  | "acosh"
+  | "atanh"
+> {
   return {
     sin: (x) => Decimal.sin(calc.toRadians(x)),
     cos: (x) => Decimal.cos(calc.toRadians(x)),
     tan: (x) => Decimal.tan(calc.toRadians(x)),
+    asin: (x) => calc.fromRadians(inverseCircularTrig(x, (value) => Decimal.asin(value))),
+    acos: (x) => calc.fromRadians(inverseCircularTrig(x, (value) => Decimal.acos(value))),
+    atan: (x) => calc.fromRadians(Decimal.atan(x)),
+    sinh: (x) => Decimal.sinh(x),
+    cosh: (x) => Decimal.cosh(x),
+    tanh: (x) => Decimal.tanh(x),
+    asinh: (x) => Decimal.asinh(x),
+    acosh: acosh,
+    atanh: atanh,
   };
+}
+
+function inverseCircularTrig(x: Decimal, op: (value: Decimal.Value) => Decimal): Decimal {
+  if (x.lt(-1) || x.gt(1)) {
+    throw new RpnError("invalid operation (inverse trigonometry domain error)");
+  }
+  return op(x);
+}
+
+function acosh(x: Decimal): Decimal {
+  if (x.lt(1)) throw new RpnError("invalid operation (hyperbolic domain error)");
+  return Decimal.acosh(x);
+}
+
+function atanh(x: Decimal): Decimal {
+  if (x.lte(-1) || x.gte(1)) {
+    throw new RpnError("invalid operation (hyperbolic domain error)");
+  }
+  return Decimal.atanh(x);
 }
 
 function divide(a: Decimal, b: Decimal): Decimal {

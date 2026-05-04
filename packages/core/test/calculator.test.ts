@@ -318,11 +318,68 @@ describe("RpnCalculator", () => {
     expect(calc.x.toNumber()).toBeCloseTo(Math.sin(Math.PI), 14);
   });
 
-  test("can switch from radians back to degrees", () => {
+  test("gradian mode uses gradians for trig", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "rad deg 90 sin");
+    processLine(calc, "grad 100 sin 200 cos 50 tan");
+    expect(calc.angleMode).toBe(AngleMode.Grad);
+    expect(calc.z.toNumber()).toBeCloseTo(1, 14);
+    expect(calc.y.toNumber()).toBeCloseTo(-1, 14);
+    expect(calc.x.toNumber()).toBeCloseTo(1, 14);
+  });
+
+  test("can switch between angle modes", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "rad grad deg 90 sin");
     expect(calc.angleMode).toBe(AngleMode.Deg);
     expect(calc.x.toNumber()).toBeCloseTo(1, 14);
+  });
+
+  test("inverse trig results use the current angle mode", () => {
+    const deg = new RpnCalculator();
+    processLine(deg, "1 asin 0 acos 1 atan");
+    expect(deg.z.toNumber()).toBeCloseTo(90, 12);
+    expect(deg.y.toNumber()).toBeCloseTo(90, 12);
+    expect(deg.x.toNumber()).toBeCloseTo(45, 12);
+
+    const rad = new RpnCalculator();
+    processLine(rad, "rad 1 asin");
+    expect(rad.x.toNumber()).toBeCloseTo(Math.PI / 2, 14);
+
+    const grad = new RpnCalculator();
+    processLine(grad, "grad 1 asin");
+    expect(grad.x.toNumber()).toBeCloseTo(100, 12);
+  });
+
+  test("inverse trig domain errors preserve stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "2");
+    expect(() => processLine(calc, "asin")).toThrow(
+      "invalid operation (inverse trigonometry domain error)",
+    );
+    expectStack(calc, [ZERO, ZERO, ZERO, d(2)]);
+  });
+
+  test("hyperbolic trig functions", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0 sinh 0 cosh 0 tanh");
+    expect(calc.z.toNumber()).toBeCloseTo(0, 14);
+    expect(calc.y.toNumber()).toBeCloseTo(1, 14);
+    expect(calc.x.toNumber()).toBeCloseTo(0, 14);
+  });
+
+  test("inverse hyperbolic functions", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0 asinh 1 acosh 0 atanh");
+    expect(calc.z.toNumber()).toBeCloseTo(0, 14);
+    expect(calc.y.toNumber()).toBeCloseTo(0, 14);
+    expect(calc.x.toNumber()).toBeCloseTo(0, 14);
+  });
+
+  test("inverse hyperbolic domain errors preserve stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0");
+    expect(() => processLine(calc, "acosh")).toThrow("invalid operation (hyperbolic domain error)");
+    expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
   });
 
   test("trig regression values in degrees", () => {
