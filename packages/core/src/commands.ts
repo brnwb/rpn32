@@ -39,6 +39,19 @@ function processTokensUnchecked(calc: RpnCalculator, tokens: Iterable<string>): 
       }
       setDisplayMode(calc, token, digitsToken);
       index += 2;
+    } else if (token === "sto" || token === "rcl" || token === "view") {
+      const variableToken = tokenList[index + 1];
+      if (variableToken === undefined) {
+        throw new RpnError(`${token} requires a variable name`);
+      }
+      processVariableCommand(calc, token, variableToken);
+      index += 2;
+    } else if (token === "clear" && tokenList[index + 1]?.trim().toLowerCase() === "var") {
+      calc.clearVariables();
+      index += 2;
+    } else if (token === "clear" && tokenList[index + 1]?.trim().toLowerCase() === "all") {
+      calc.clearAll();
+      index += 2;
     } else {
       processToken(calc, token);
       index += 1;
@@ -120,6 +133,9 @@ export function processToken(calc: RpnCalculator, token: string): void {
     case "all":
       calc.display.mode = DisplayMode.All;
       return;
+    case "vars":
+      calc.listVariables();
+      return;
     case "deg":
       calc.setAngleMode(AngleMode.Deg);
       return;
@@ -146,7 +162,9 @@ function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {
     display: { ...calc.display },
     lastX: calc.lastX,
     liftEnabled: calc.liftEnabled,
+    messages: [...calc.messages],
     stack: [...calc.stack],
+    variables: new Map(calc.variables),
   };
 }
 
@@ -155,7 +173,9 @@ function restoreSnapshot(calc: RpnCalculator, snapshot: RpnCalculatorSnapshot): 
   calc.display = { ...snapshot.display };
   calc.lastX = snapshot.lastX;
   calc.liftEnabled = snapshot.liftEnabled;
+  calc.messages = [...snapshot.messages];
   calc.stack = [...snapshot.stack];
+  calc.variables = new Map(snapshot.variables);
 }
 
 interface RpnCalculatorSnapshot {
@@ -163,7 +183,19 @@ interface RpnCalculatorSnapshot {
   display: RpnCalculator["display"];
   lastX: RpnCalculator["lastX"];
   liftEnabled: boolean;
+  messages: RpnCalculator["messages"];
   stack: RpnCalculator["stack"];
+  variables: RpnCalculator["variables"];
+}
+
+function processVariableCommand(
+  calc: RpnCalculator,
+  command: "sto" | "rcl" | "view",
+  variableName: string,
+): void {
+  if (command === "sto") calc.storeVariable(variableName);
+  else if (command === "rcl") calc.recallVariable(variableName);
+  else calc.viewVariable(variableName);
 }
 
 function decimalPower(a: Decimal, b: Decimal): Decimal {

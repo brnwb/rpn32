@@ -60,10 +60,12 @@ export function parseDecimal(token: string): NumberValue | undefined {
 
 export class RpnCalculator {
   stack: NumberValue[] = [ZERO, ZERO, ZERO, ZERO];
+  messages: string[] = [];
   liftEnabled = true;
   lastX: NumberValue = ZERO;
   display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES };
   angleMode: AngleMode = AngleMode.Deg;
+  variables = new Map<string, NumberValue>();
 
   get x(): NumberValue {
     return this.stack[3] ?? ZERO;
@@ -118,8 +120,51 @@ export class RpnCalculator {
     this.lastX = ZERO;
   }
 
+  clearVariables(): void {
+    this.variables.clear();
+  }
+
+  clearAll(): void {
+    this.clear();
+    this.clearVariables();
+  }
+
   recallLastX(): void {
     this.pushNumber(this.lastX);
+  }
+
+  storeVariable(name: string): void {
+    this.variables.set(normalizeVariableName(name), this.x);
+  }
+
+  recallVariable(name: string): void {
+    this.pushNumber(this.variables.get(normalizeVariableName(name)) ?? ZERO);
+  }
+
+  viewVariable(name: string): void {
+    const normalized = normalizeVariableName(name);
+    const value = this.variables.get(normalized) ?? ZERO;
+    this.messages.push(`${formatVariableName(normalized)}: ${value.toString()}`);
+  }
+
+  listVariables(): void {
+    const names = [...this.variables.keys()].filter((name) => !this.variables.get(name)?.isZero());
+    if (names.length === 0) {
+      this.messages.push("no variables");
+      return;
+    }
+
+    for (const name of sortVariableNames(names)) {
+      this.messages.push(
+        `${formatVariableName(name)}: ${this.variables.get(name)?.toString() ?? "0"}`,
+      );
+    }
+  }
+
+  takeMessages(): string[] {
+    const messages = this.messages;
+    this.messages = [];
+    return messages;
   }
 
   setDisplayMode(mode: DisplayMode, digits: number): void {
@@ -207,6 +252,26 @@ export class RpnCalculator {
     this.lastX = lastX;
     this.liftEnabled = liftEnabled;
   }
+}
+
+export function normalizeVariableName(name: string): string {
+  const normalized = name.trim().toLowerCase();
+  if (!/^(?:[a-z]|i)$/.test(normalized)) {
+    throw new RpnError(`variable name must be A through Z or i: ${JSON.stringify(name)}`);
+  }
+  return normalized;
+}
+
+function formatVariableName(name: string): string {
+  return name === "i" ? "i" : name.toUpperCase();
+}
+
+function sortVariableNames(names: string[]): string[] {
+  return [...names].sort((left: string, right: string) => {
+    if (left === "i") return right === "i" ? 0 : 1;
+    if (right === "i") return -1;
+    return left.localeCompare(right);
+  });
 }
 
 function nonFiniteResultMessage(result: NumberValue): string {
