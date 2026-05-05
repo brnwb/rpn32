@@ -26,9 +26,13 @@ REPL commands:
   deg rad grad    set trigonometry angle mode
   enter           duplicate X with HP-style ENTER behavior
   lastx           recall the previous X value
+  sto A / rcl A   store or recall variables A through Z and i
+  view A / vars   view one variable or list stored variables
   swap            swap X and Y
   drop clx        drop/clear X
   clear           clear the stack
+  clear var       clear all variables
+  clear all       clear stack, lastx, and variables
   fix n           show n digits after the decimal point
   sci n           show scientific notation with n decimal places
   eng n           show engineering notation with n decimal places
@@ -76,7 +80,12 @@ function runExpression(expression: string): void {
   const calc = new RpnCalculator();
   try {
     processLine(calc, expression);
-    console.log(formatStack(calc.stack, calc.display));
+    const messages = calc.takeMessages();
+    if (messages.length > 0) {
+      printMessages(messages);
+    } else {
+      console.log(formatStack(calc.stack, calc.display));
+    }
   } catch (error) {
     console.error(formatError(error));
     process.exitCode = 1;
@@ -131,11 +140,16 @@ async function runRepl(): Promise<void> {
       console.log(formatError(error));
     }
 
+    printMessages(calc.takeMessages());
     console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
     prompt(repl, calc);
   }
 
   repl.close();
+}
+
+function printMessages(messages: string[]): void {
+  for (const message of messages) console.log(message);
 }
 
 function formatError(error: unknown): string {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added variable storage and recall with `sto` and `rcl` for variables `A` through `Z` and `i`.
+- Added `clear var` and `clear all` clearing commands.
+- Added `view` and `vars` commands for inspecting variables without changing the stack.
+
 ## 0.1.4 - 2026-05-03
 
 - Added `grad` angle mode for trigonometry.

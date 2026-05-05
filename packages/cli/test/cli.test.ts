@@ -56,4 +56,24 @@ describe("rpn32 CLI", () => {
     expect(stdout).toBe("5\n");
     expect(stderr).toBe("");
   });
+
+  test("one-shot expression with display messages prints messages without final stack", async () => {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [
+      "packages/cli/dist/cli.js",
+      "42 sto A 123 view A",
+    ]);
+
+    expect(stdout).toBe("A: 42\n");
+    expect(stderr).toBe("");
+  });
+
+  test("piped input with display messages prints messages without final stack", async () => {
+    const { stdout, stderr } = await execFileAsync("bash", [
+      "-lc",
+      `printf '42 sto A 99 sto B vars\\n' | ${JSON.stringify(process.execPath)} packages/cli/dist/cli.js`,
+    ]);
+
+    expect(stdout).toBe("A: 42\nB: 99\n");
+    expect(stderr).toBe("");
+  });
 });

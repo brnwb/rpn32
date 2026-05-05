@@ -127,6 +127,79 @@ describe("RpnCalculator", () => {
     expect(calc.lastX.eq(0)).toBe(true);
   });
 
+  test("store and recall variables", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "42 sto A clear rcl A");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(42)]);
+  });
+
+  test("store does not modify the stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 2 sto B");
+    expectStack(calc, [ZERO, ZERO, d(1), d(2)]);
+  });
+
+  test("recall lifts the stack and uninitialized variables recall zero", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "7 rcl C");
+    expectStack(calc, [ZERO, ZERO, d(7), ZERO]);
+  });
+
+  test("variable names are case-insensitive and include i", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "12 sto i clear rcl I");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(12)]);
+  });
+
+  test("invalid variable commands roll back the whole input line", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "20");
+    expect(() => processLine(calc, "30 sto AA")).toThrow("variable name must be A through Z or i");
+    expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
+  test("clear var clears variables without clearing the stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "42 sto A 7 clear var rcl A");
+    expectStack(calc, [ZERO, d(42), d(7), ZERO]);
+  });
+
+  test("clear all clears stack lastx and variables", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "42 sto A 8 2 / clear all rcl A");
+    expect(calc.lastX.eq(0)).toBe(true);
+    expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
+  });
+
+  test("view shows a variable without changing the stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "42 sto A 123 view A");
+    expect(calc.messages).toEqual(["A: 42"]);
+    expectStack(calc, [ZERO, ZERO, d(42), d(123)]);
+  });
+
+  test("vars lists nonzero variables sorted by name with i last", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "3 sto C 1 sto A 2 sto i vars");
+    expect(calc.messages).toEqual(["A: 1", "C: 3", "i: 2"]);
+    expectStack(calc, [ZERO, d(3), d(1), d(2)]);
+  });
+
+  test("vars reports no variables when none are nonzero", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "vars");
+    expect(calc.messages).toEqual(["no variables"]);
+    expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
+  });
+
+  test("takeMessages returns and clears display messages", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "42 sto A view A");
+    expect(calc.takeMessages()).toEqual(["A: 42"]);
+    expect(calc.takeMessages()).toEqual([]);
+    expectStack(calc, [ZERO, ZERO, ZERO, d(42)]);
+  });
+
   test("decimal arithmetic avoids binary floating point surprises", () => {
     const calc = new RpnCalculator();
     processLine(calc, "0.1 0.2 +");
