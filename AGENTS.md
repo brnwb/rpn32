@@ -2,7 +2,7 @@
 
 ## Project
 
-`rpn32` is an npm workspace monorepo for an HP 32SII-inspired RPN calculator written in TypeScript.
+`rpn32` is a pnpm workspace monorepo for an HP 32SII-inspired RPN calculator written in TypeScript.
 
 ## Packages
 
@@ -13,13 +13,13 @@
 
 Run from the repository root:
 
-- `npm run dev`: build core and run the CLI
-- `npm run build`: build all packages
-- `npm run format`: format with oxfmt
-- `npm run format:check`: check formatting with oxfmt
-- `npm run lint`: lint with oxlint
-- `npm run test`: run tests
-- `npm run check`: format check, lint, build, and test
+- `pnpm run dev`: build core and run the CLI
+- `pnpm run build`: build all packages
+- `pnpm run format`: format with oxfmt
+- `pnpm run format:check`: check formatting with oxfmt
+- `pnpm run lint`: lint with oxlint
+- `pnpm run test`: run tests
+- `pnpm run check`: format check, lint, build, and test
 
 ## Guidelines
 
