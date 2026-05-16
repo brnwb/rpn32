@@ -10,6 +10,7 @@ export const MAX_DISPLAY_DECIMAL_PLACES = DISPLAY_SIGNIFICANT_DIGITS - 1;
 Decimal.set({ precision: INTERNAL_PRECISION, rounding: Decimal.ROUND_HALF_UP });
 
 export type NumberValue = Decimal;
+export type RpnStack = [NumberValue, NumberValue, NumberValue, NumberValue];
 export type UnaryOp = (x: NumberValue) => NumberValue;
 export type BinaryOp = (a: NumberValue, b: NumberValue) => NumberValue;
 
@@ -59,7 +60,7 @@ export function parseDecimal(token: string): NumberValue | undefined {
 }
 
 export class RpnCalculator {
-  stack: NumberValue[] = [ZERO, ZERO, ZERO, ZERO];
+  stack: RpnStack = [ZERO, ZERO, ZERO, ZERO];
   messages: string[] = [];
   liftEnabled = true;
   lastX: NumberValue = ZERO;
@@ -68,19 +69,19 @@ export class RpnCalculator {
   variables = new Map<string, NumberValue>();
 
   get x(): NumberValue {
-    return this.stack[3] ?? ZERO;
+    return this.stack[3];
   }
 
   get y(): NumberValue {
-    return this.stack[2] ?? ZERO;
+    return this.stack[2];
   }
 
   get z(): NumberValue {
-    return this.stack[1] ?? ZERO;
+    return this.stack[1];
   }
 
   get t(): NumberValue {
-    return this.stack[0] ?? ZERO;
+    return this.stack[0];
   }
 
   pushNumber(value: NumberValue): void {
@@ -95,9 +96,9 @@ export class RpnCalculator {
   }
 
   drop(): void {
-    this.stack[3] = this.stack[2] ?? ZERO;
-    this.stack[2] = this.stack[1] ?? ZERO;
-    this.stack[1] = this.stack[0] ?? ZERO;
+    this.stack[3] = this.stack[2];
+    this.stack[2] = this.stack[1];
+    this.stack[1] = this.stack[0];
     this.stack[0] = ZERO;
     this.liftEnabled = true;
   }
@@ -108,8 +109,8 @@ export class RpnCalculator {
   }
 
   swap(): void {
-    const x = this.stack[3] ?? ZERO;
-    this.stack[3] = this.stack[2] ?? ZERO;
+    const x = this.stack[3];
+    this.stack[3] = this.stack[2];
     this.stack[2] = x;
     this.liftEnabled = true;
   }
@@ -177,7 +178,7 @@ export class RpnCalculator {
   }
 
   applyUnary(op: UnaryOp): void {
-    const previousStack = [...this.stack];
+    const previousStack: RpnStack = [...this.stack];
     const previousLastX = this.lastX;
     const previousLiftEnabled = this.liftEnabled;
 
@@ -199,7 +200,7 @@ export class RpnCalculator {
   }
 
   applyBinary(op: BinaryOp): void {
-    const previousStack = [...this.stack];
+    const previousStack: RpnStack = [...this.stack];
     const previousLastX = this.lastX;
     const previousLiftEnabled = this.liftEnabled;
 
@@ -217,8 +218,8 @@ export class RpnCalculator {
     }
 
     this.stack[3] = result;
-    this.stack[2] = this.stack[1] ?? ZERO;
-    this.stack[1] = this.stack[0] ?? ZERO;
+    this.stack[2] = this.stack[1];
+    this.stack[1] = this.stack[0];
     // T repeats when the HP stack drops after a two-argument operation.
     this.liftEnabled = true;
   }
@@ -242,12 +243,12 @@ export class RpnCalculator {
   }
 
   private lift(): void {
-    this.stack[0] = this.stack[1] ?? ZERO;
-    this.stack[1] = this.stack[2] ?? ZERO;
-    this.stack[2] = this.stack[3] ?? ZERO;
+    this.stack[0] = this.stack[1];
+    this.stack[1] = this.stack[2];
+    this.stack[2] = this.stack[3];
   }
 
-  private restore(stack: NumberValue[], lastX: NumberValue, liftEnabled: boolean): void {
+  private restore(stack: RpnStack, lastX: NumberValue, liftEnabled: boolean): void {
     this.stack = stack;
     this.lastX = lastX;
     this.liftEnabled = liftEnabled;
