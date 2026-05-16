@@ -22,20 +22,20 @@ rpn32 '3 2 +'
 ## Development setup
 
 ```bash
-npm install
+pnpm install
 ```
 
 ## Run in development
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ## Build and run
 
 ```bash
-npm run build
-npx rpn32
+pnpm run build
+pnpm --filter @brnwb/rpn32 exec rpn32
 ```
 
 ## Usage
@@ -152,7 +152,7 @@ A few convenience aliases are currently accepted: `dup`, `xy`, `pow`, `fact`, an
 
 ## Project structure
 
-This is an npm workspace monorepo with the reusable calculator engine separated from the CLI shell.
+This is a pnpm workspace monorepo with the reusable calculator engine separated from the CLI shell.
 
 ```text
 packages/
@@ -179,8 +179,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 ## Development commands
 
 ```bash
-npm run format        # format with oxfmt
-npm run format:check  # check formatting with oxfmt
-npm run lint          # lint with oxlint
-npm run check         # format check, lint, build, and test
+pnpm run format        # format with oxfmt
+pnpm run format:check  # check formatting with oxfmt
+pnpm run lint          # lint with oxlint
+pnpm run check         # format check, lint, build, and test
 ```
