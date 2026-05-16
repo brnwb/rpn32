@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.6 - 2026-05-15
+
 - Changed the core calculator stack type to a fixed four-level tuple to better model the HP-style `T Z Y X` stack.
 - Converted the repository from npm workspaces to pnpm workspaces.
 
