@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Changed the core calculator stack type to a fixed four-level tuple to better model the HP-style `T Z Y X` stack.
+- Converted the repository from npm workspaces to pnpm workspaces.
+
 ## 0.1.5 - 2026-05-04
 
 - Added variable storage and recall with `sto` and `rcl` for variables `A` through `Z` and `i`.
