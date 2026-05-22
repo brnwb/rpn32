@@ -4,6 +4,7 @@
   "categories": {
     "correctness": "error"
   },
+  "ignorePatterns": ["packages/core/src/vendor/decimal.js/**"],
   "rules": {},
   "env": {
     "builtin": true

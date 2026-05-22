@@ -1,4 +1,4 @@
-import { Decimal } from "decimal.js";
+import { Decimal } from "./vendor/decimal.js/decimal.mjs";
 
 // The HP 32SII displays 12 significant digits and keeps a few guard digits
 // internally. This is not a perfect emulation, but Decimal gets us much closer

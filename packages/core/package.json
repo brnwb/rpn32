@@ -27,10 +27,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "build": "pnpm run clean && tsc -p tsconfig.json && cp -R src/vendor dist/vendor",
     "test": "vitest --run test"
-  },
-  "dependencies": {
-    "decimal.js": "10.6.0"
   }
 }
