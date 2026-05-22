@@ -1,4 +1,4 @@
-import { Decimal } from "decimal.js";
+import { Decimal } from "../src/vendor/decimal.js/decimal.mjs";
 import { describe, expect, test } from "vitest";
 
 import {

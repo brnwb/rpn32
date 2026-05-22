@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Vendored `decimal.js` in the core package and removed it as a runtime npm dependency.
+
 ## [0.1.6] - 2026-05-15
 
 - Changed the core calculator stack type to a fixed four-level tuple to better model the HP-style `T Z Y X` stack.

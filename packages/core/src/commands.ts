@@ -1,4 +1,4 @@
-import { Decimal } from "decimal.js";
+import { Decimal } from "./vendor/decimal.js/decimal.mjs";
 import {
   AngleMode,
   DISPLAY_SIGNIFICANT_DIGITS,
