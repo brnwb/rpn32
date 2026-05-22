@@ -23,5 +23,5 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.14"
   },
-  "packageManager": "pnpm@11.0.8"
+  "packageManager": "pnpm@11.2.2"
 }
