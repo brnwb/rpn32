@@ -29,5 +29,8 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "build": "pnpm run clean && tsc -p tsconfig.json && cp -R src/vendor dist/vendor",
     "test": "vitest --run test"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }
