@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## [0.1.7] - 2026-05-22
 
 - Vendored `decimal.js` in the core package and removed it as a runtime npm dependency.
