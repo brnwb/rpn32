@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Declared Node.js `>=22.13.0` support for published packages and expanded CI coverage to Node 22 and 24.
+
 ## [0.1.7] - 2026-05-22
 
 - Vendored `decimal.js` in the core package and removed it as a runtime npm dependency.

@@ -33,6 +33,6 @@
     "@brnwb/rpn32-core": "workspace:*"
   },
   "engines": {
-    "node": ">=20.6.0"
+    "node": ">=22.13.0"
   }
 }
