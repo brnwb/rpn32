@@ -3,8 +3,10 @@
  * Release script for rpn32
  *
  * Usage:
- *   node scripts/release.mjs <major|minor|patch>
- *   node scripts/release.mjs <x.y.z>
+ *   node scripts/release.mjs <major|minor|patch> --dry-run
+ *   node scripts/release.mjs <major|minor|patch> --yes
+ *   node scripts/release.mjs <x.y.z> --dry-run
+ *   node scripts/release.mjs <x.y.z> --yes
  *
  * Steps:
  * 1. Check for uncommitted changes
@@ -20,14 +22,53 @@
 import { execSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 
-const RELEASE_TARGET = process.argv[2];
+const args = process.argv.slice(2);
+const options = new Set(args.filter((arg) => arg.startsWith("--")));
+const targets = args.filter((arg) => !arg.startsWith("--"));
+const RELEASE_TARGET = targets[0];
+const DRY_RUN = options.has("--dry-run");
+const YES = options.has("--yes");
 const BUMP_TYPES = new Set(["major", "minor", "patch"]);
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const PACKAGE_JSONS = ["package.json", "packages/core/package.json", "packages/cli/package.json"];
+const RELEASE_EDITED_FILES = [
+  ...PACKAGE_JSONS,
+  "CHANGELOG.md",
+  "packages/cli/test/cli.test.ts",
+  "pnpm-lock.yaml",
+];
 
-if (!RELEASE_TARGET || (!BUMP_TYPES.has(RELEASE_TARGET) && !SEMVER_RE.test(RELEASE_TARGET))) {
-  console.error("Usage: node scripts/release.mjs <major|minor|patch|x.y.z>");
+for (const option of options) {
+  if (option !== "--dry-run" && option !== "--yes") {
+    console.error(`Unknown option: ${option}`);
+    printUsage();
+    process.exit(1);
+  }
+}
+
+if (
+  targets.length !== 1 ||
+  !RELEASE_TARGET ||
+  (!BUMP_TYPES.has(RELEASE_TARGET) && !SEMVER_RE.test(RELEASE_TARGET))
+) {
+  printUsage();
   process.exit(1);
+}
+
+if (DRY_RUN && YES) {
+  console.error("Error: use either --dry-run or --yes, not both.");
+  process.exit(1);
+}
+
+if (!DRY_RUN && !YES) {
+  console.error(
+    "Error: real releases require --yes. Use --dry-run to rehearse without publishing.",
+  );
+  process.exit(1);
+}
+
+function printUsage() {
+  console.error("Usage: node scripts/release.mjs <major|minor|patch|x.y.z> <--dry-run|--yes>");
 }
 
 function run(cmd, options = {}) {
@@ -85,6 +126,10 @@ function stageChangedFiles() {
   }
 
   run(`git add -- ${paths.map(shellQuote).join(" ")}`);
+}
+
+function restoreReleaseFiles() {
+  run(`git restore -- ${RELEASE_EDITED_FILES.map(shellQuote).join(" ")}`);
 }
 
 function bumpVersion(version, bump) {
@@ -161,6 +206,7 @@ function updateCliVersionTest(fromVersion, toVersion) {
 
 // Main flow
 console.log("\n=== Release Script ===\n");
+console.log(DRY_RUN ? "Mode: dry run\n" : "Mode: publish\n");
 
 // 1. Check for uncommitted changes
 console.log("Checking for uncommitted changes...");
@@ -216,6 +262,13 @@ run("pnpm install --lockfile-only");
 run("pnpm run check");
 run("pnpm publish -r --access public --publish-branch main --dry-run");
 console.log();
+
+if (DRY_RUN) {
+  console.log("Dry run complete. Restoring release file changes...");
+  restoreReleaseFiles();
+  console.log(`=== Dry run for ${tag} succeeded ===`);
+  process.exit(0);
+}
 
 // 4. Commit and tag
 console.log("Committing and tagging...");
