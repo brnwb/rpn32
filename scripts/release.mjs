@@ -260,7 +260,7 @@ console.log();
 console.log("Validating release...");
 run("pnpm install --lockfile-only");
 run("pnpm run check");
-run("pnpm publish -r --access public --publish-branch main --dry-run");
+run("pnpm publish -r --access public --publish-branch main --dry-run --no-git-checks");
 console.log();
 
 if (DRY_RUN) {
