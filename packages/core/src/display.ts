@@ -6,6 +6,8 @@ import {
   MAX_DISPLAY_DECIMAL_PLACES,
   RpnError,
   ZERO,
+  baseIntegerFromDecimal,
+  toBaseWord,
   type DisplaySettings,
   type NumberValue,
 } from "./calculator.js";
@@ -95,11 +97,11 @@ export function formatStack(
 }
 
 function formatBaseInteger(value: NumberValue, baseMode: BaseMode): string {
-  if (!value.isInteger() || value.abs().gt(Number.MAX_SAFE_INTEGER)) return formatAll(value);
+  const integer = baseIntegerFromDecimal(value);
+  if (integer === undefined) return "Too Big";
 
   const radix = radixFor(baseMode);
-  const sign = value.isNegative() ? "-" : "";
-  return `${sign}${Math.abs(value.toNumber()).toString(radix).toUpperCase()}`;
+  return toBaseWord(integer).toString(radix).toUpperCase();
 }
 
 function radixFor(baseMode: BaseMode): number {

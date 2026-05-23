@@ -247,6 +247,65 @@ describe("RpnCalculator", () => {
     expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("15");
   });
 
+  test("base display uses the integer part and preserves decimal values across mode changes", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "125.99 hex");
+    expect(calc.x.toString()).toBe("125.99");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("7D");
+
+    processLine(calc, "oct");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("175");
+
+    processLine(calc, "bin");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("1111101");
+
+    processLine(calc, "dec");
+    expect(calc.x.toString()).toBe("125.99");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("125.99");
+  });
+
+  test("base modes use 36-bit twos-complement representation", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "hex fffffffff");
+    expect(calc.x.toString()).toBe("-1");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("FFFFFFFFF");
+
+    processLine(calc, "hex 800000000 dec");
+    expect(calc.x.toString()).toBe("-34359738368");
+
+    processLine(calc, "hex 7ffffffff");
+    expect(calc.x.toString()).toBe("34359738367");
+  });
+
+  test("base mode arithmetic truncates operands and results to integers", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "dec 100 5 / oct");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("24");
+
+    processLine(calc, "100 5 /");
+    expect(calc.x.toString()).toBe("12");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("14");
+  });
+
+  test("base mode arithmetic clamps 36-bit overflow", () => {
+    const positive = new RpnCalculator();
+    processLine(positive, "hex 7ffffffff 1 +");
+    expect(positive.x.toString()).toBe("34359738367");
+    expect(formatStack(positive.stack, positive.display, { baseMode: positive.baseMode })).toBe(
+      "7FFFFFFFF",
+    );
+
+    const negative = new RpnCalculator();
+    processLine(negative, "hex 800000000 1 -");
+    expect(negative.x.toString()).toBe("-34359738368");
+    expect(formatStack(negative.stack, negative.display, { baseMode: negative.baseMode })).toBe(
+      "800000000",
+    );
+  });
+
   test("base mode commands take precedence over hexadecimal digits", () => {
     const calc = new RpnCalculator();
 
@@ -264,17 +323,18 @@ describe("RpnCalculator", () => {
     expectStack(calc, [ZERO, ZERO, ZERO, d(10)]);
   });
 
-  test("base modes reject unsafe integer input and fall back for decimal-only display values", () => {
+  test("base modes reject values outside 36-bit word size", () => {
     const calc = new RpnCalculator();
 
     expect(() => processLine(calc, "hex 20000000000000")).toThrow(
-      "base input requires a safe integer",
+      "base input exceeds 36-bit word size",
+    );
+    expect(() => processLine(calc, "bin 1000000000000000000000000000000000000")).toThrow(
+      "base input exceeds 36-bit word size",
     );
 
-    processLine(calc, "dec 10 3 / hex");
-    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe(
-      "3.33333333333",
-    );
+    processLine(calc, "dec 1e12 hex");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("Too Big");
   });
 
   test("division and multiplication round consistently at internal precision", () => {
