@@ -20,12 +20,11 @@ export function formatNumber(
 }
 
 function formatFixed(value: NumberValue, digits: number): string {
-  const text = value.toFixed(digits);
-  const rounded = new Decimal(text);
-  const digitCount = text.replace("-", "").replace(".", "").length;
-  if ((!value.isZero() && rounded.isZero()) || digitCount > DISPLAY_SIGNIFICANT_DIGITS) {
+  if (fixedWouldRoundToZero(value, digits) || fixedWouldExceedDisplay(value, digits)) {
     return formatScientific(value, digits);
   }
+
+  const text = value.toFixed(digits);
   return text;
 }
 
@@ -48,10 +47,18 @@ function formatScientific(value: NumberValue, digits: number): string {
 function formatEngineering(value: NumberValue, digits: number): string {
   if (value.isZero()) return `${ZERO.toFixed(digits)}e+0`;
 
-  const exponent = value.abs().logarithm(10).floor().toNumber();
+  const exponent = value.e;
   const engineeringExponent = exponent - modulo(exponent, 3);
   const mantissa = value.div(new Decimal(10).pow(engineeringExponent));
   return `${mantissa.toFixed(digits)}e${formatExponent(engineeringExponent)}`;
+}
+
+function fixedWouldRoundToZero(value: NumberValue, digits: number): boolean {
+  return !value.isZero() && value.e < -digits;
+}
+
+function fixedWouldExceedDisplay(value: NumberValue, digits: number): boolean {
+  return value.e >= 0 && value.e + 1 + digits > DISPLAY_SIGNIFICANT_DIGITS;
 }
 
 function modulo(value: number, divisor: number): number {

@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Declared Node.js `>=22.13.0` support for published packages and expanded CI coverage to Node 22 and 24.
+- Normalized decimal-library math failures into `RpnError` messages while preserving calculator state.
+- Made degree and gradian quadrant trigonometry exact, including explicit errors for undefined tangent values.
+- Rejected unsafe integer exponents, non-decimal numeric literals, and non-decimal display digit counts instead of accepting surprising JavaScript coercions.
+- Prevented fixed display formatting from materializing enormous strings for very large numbers.
 
 ## [0.1.7] - 2026-05-22
 
