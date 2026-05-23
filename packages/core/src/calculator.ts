@@ -17,6 +17,14 @@ export type BinaryOp = (a: NumberValue, b: NumberValue) => NumberValue;
 export const PI = new Decimal("3.14159265358979");
 export const E = new Decimal("2.71828182845905");
 export const ZERO = new Decimal(0);
+export const BASE_MIN_INTEGER = new Decimal("-34359738368");
+export const BASE_MAX_INTEGER = new Decimal("34359738367");
+
+const BASE_WORD_BITS = 36n;
+const BASE_UNSIGNED_LIMIT = 1n << BASE_WORD_BITS;
+const BASE_SIGN_BIT = 1n << (BASE_WORD_BITS - 1n);
+const BASE_MIN_BIGINT = -(1n << (BASE_WORD_BITS - 1n));
+const BASE_MAX_BIGINT = (1n << (BASE_WORD_BITS - 1n)) - 1n;
 
 export enum DisplayMode {
   All = "all",
@@ -79,18 +87,45 @@ export function parseBaseInteger(token: string, baseMode: BaseMode): NumberValue
   const digits =
     normalized.startsWith("-") || normalized.startsWith("+") ? normalized.slice(1) : normalized;
   if (digits === "" || !spec.digits.test(digits)) return undefined;
+  if (digits.length > spec.maxDigits) {
+    throw new RpnError("base input exceeds 36-bit word size");
+  }
 
   let result = 0n;
   const radix = BigInt(spec.radix);
   for (const digit of digits.toLowerCase()) {
     result = result * radix + BigInt(spec.valueOf(digit));
   }
-  if (result > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new RpnError("base input requires a safe integer");
+  if (!isNegative && result >= BASE_UNSIGNED_LIMIT) {
+    throw new RpnError("base input exceeds 36-bit word size");
   }
 
-  const signedResult = isNegative ? -result : result;
+  const signedResult = isNegative ? -result : fromBaseWord(result);
+  if (signedResult < BASE_MIN_BIGINT || signedResult > BASE_MAX_BIGINT) {
+    throw new RpnError("base input exceeds 36-bit word size");
+  }
+
   return new Decimal(signedResult.toString());
+}
+
+export function baseIntegerFromDecimal(value: NumberValue): bigint | undefined {
+  const integer = value.trunc();
+  if (integer.lt(BASE_MIN_INTEGER) || integer.gt(BASE_MAX_INTEGER)) return undefined;
+  return BigInt(integer.toFixed(0));
+}
+
+export function clampBaseInteger(value: bigint): bigint {
+  if (value < BASE_MIN_BIGINT) return BASE_MIN_BIGINT;
+  if (value > BASE_MAX_BIGINT) return BASE_MAX_BIGINT;
+  return value;
+}
+
+export function toBaseWord(value: bigint): bigint {
+  return value < 0n ? value + BASE_UNSIGNED_LIMIT : value;
+}
+
+function fromBaseWord(value: bigint): bigint {
+  return value >= BASE_SIGN_BIT ? value - BASE_UNSIGNED_LIMIT : value;
 }
 
 export class RpnCalculator {
@@ -331,6 +366,7 @@ function normalizeMathError(error: unknown): unknown {
 function baseSpec(baseMode: BaseMode):
   | {
       digits: RegExp;
+      maxDigits: number;
       radix: number;
       valueOf: (digit: string) => number;
     }
@@ -339,18 +375,21 @@ function baseSpec(baseMode: BaseMode):
     case BaseMode.Hex:
       return {
         digits: /^[0-9a-f]+$/i,
+        maxDigits: 9,
         radix: 16,
         valueOf: (digit) => Number.parseInt(digit, 16),
       };
     case BaseMode.Oct:
       return {
         digits: /^[0-7]+$/,
+        maxDigits: 12,
         radix: 8,
         valueOf: (digit) => Number.parseInt(digit, 8),
       };
     case BaseMode.Bin:
       return {
         digits: /^[01]+$/,
+        maxDigits: 36,
         radix: 2,
         valueOf: (digit) => Number.parseInt(digit, 2),
       };

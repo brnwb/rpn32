@@ -10,6 +10,8 @@ import {
   RpnCalculator,
   RpnError,
   ZERO,
+  baseIntegerFromDecimal,
+  clampBaseInteger,
   parseBaseInteger,
   parseDecimal,
   type BinaryOp,
@@ -75,15 +77,7 @@ export function processToken(calc: RpnCalculator, token: string): void {
     return;
   }
 
-  const binaryOps: Record<string, BinaryOp> = {
-    "+": (a, b) => a.plus(b),
-    "-": (a, b) => a.minus(b),
-    "*": (a, b) => a.times(b),
-    "/": divide,
-    "^": decimalPower,
-    pow: decimalPower,
-    mod: modulo,
-  };
+  const binaryOps = binaryOpsFor(calc);
   const unaryOps: Record<string, UnaryOp> = {
     sqrt: sqrt,
     sq: (x) => x.times(x),
@@ -160,6 +154,59 @@ export function processToken(calc: RpnCalculator, token: string): void {
     default:
       throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
   }
+}
+
+function binaryOpsFor(calc: RpnCalculator): Record<string, BinaryOp> {
+  if (calc.baseMode !== BaseMode.Dec) {
+    return {
+      "+": baseBinaryOp((a, b) => a + b),
+      "-": baseBinaryOp((a, b) => a - b),
+      "*": baseBinaryOp((a, b) => a * b),
+      "/": baseDivide,
+      "^": decimalPower,
+      pow: decimalPower,
+      mod: baseModulo,
+    };
+  }
+
+  return {
+    "+": (a, b) => a.plus(b),
+    "-": (a, b) => a.minus(b),
+    "*": (a, b) => a.times(b),
+    "/": divide,
+    "^": decimalPower,
+    pow: decimalPower,
+    mod: modulo,
+  };
+}
+
+function baseBinaryOp(op: (a: bigint, b: bigint) => bigint): BinaryOp {
+  return (a, b) =>
+    new Decimal(clampBaseInteger(op(requireBaseInteger(a), requireBaseInteger(b))).toString());
+}
+
+function baseDivide(a: Decimal, b: Decimal): Decimal {
+  const divisor = requireBaseInteger(b);
+  if (divisor === 0n) throw new RpnError("invalid operation (divide by zero)");
+
+  const result = requireBaseInteger(a) / divisor;
+  return new Decimal(clampBaseInteger(result).toString());
+}
+
+function baseModulo(a: Decimal, b: Decimal): Decimal {
+  const divisor = requireBaseInteger(b);
+  if (divisor === 0n) throw new RpnError("invalid operation (divide by zero)");
+
+  const result = requireBaseInteger(a) % divisor;
+  return new Decimal(clampBaseInteger(result).toString());
+}
+
+function requireBaseInteger(value: Decimal): bigint {
+  const integer = baseIntegerFromDecimal(value);
+  if (integer === undefined) {
+    throw new RpnError("base operation exceeds 36-bit word size");
+  }
+  return integer;
 }
 
 function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {

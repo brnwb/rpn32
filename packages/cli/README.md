@@ -149,6 +149,8 @@ error: invalid operation (divide by zero)
 - Constants: `pi`, `e`
 - REPL: `help`, `quit`
 
+Base modes follow the HP 32SII's 36-bit, two's-complement integer model. Changing base changes display and input mode without truncating the stored decimal value, but arithmetic in `hex`, `oct`, and `bin` uses integer parts and returns integer results.
+
 A few convenience aliases are currently accepted: `dup`, `xy`, `pow`, `fact`, and `neg`.
 
 ## Project structure
