@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   AngleMode,
+  BaseMode,
   DisplayMode,
   RpnCalculator,
   RpnError,
@@ -227,6 +228,53 @@ describe("RpnCalculator", () => {
     expect(() => processLine(calc, "30 0b10 +")).toThrow('unknown token: "0b10"');
     expect(() => processLine(calc, "30 1_000 +")).toThrow('unknown token: "1_000"');
     expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
+  test("base mode commands parse and display integer values", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "hex ff a +");
+    expect(calc.baseMode).toBe(BaseMode.Hex);
+    expect(calc.x.toString()).toBe("265");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("109");
+
+    processLine(calc, "bin 1010");
+    expect(calc.x.toString()).toBe("10");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("1010");
+
+    processLine(calc, "oct 17 dec");
+    expect(calc.x.toString()).toBe("15");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("15");
+  });
+
+  test("base mode commands take precedence over hexadecimal digits", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "hex dec 10");
+    expect(calc.baseMode).toBe(BaseMode.Dec);
+    expect(calc.x.toString()).toBe("10");
+  });
+
+  test("base modes reject invalid digits and roll back the whole line", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "hex a");
+
+    expect(() => processLine(calc, "bin 102")).toThrow('unknown token: "102"');
+    expect(calc.baseMode).toBe(BaseMode.Hex);
+    expectStack(calc, [ZERO, ZERO, ZERO, d(10)]);
+  });
+
+  test("base modes reject unsafe integer input and fall back for decimal-only display values", () => {
+    const calc = new RpnCalculator();
+
+    expect(() => processLine(calc, "hex 20000000000000")).toThrow(
+      "base input requires a safe integer",
+    );
+
+    processLine(calc, "dec 10 3 / hex");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe(
+      "3.33333333333",
+    );
   });
 
   test("division and multiplication round consistently at internal precision", () => {

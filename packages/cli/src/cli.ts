@@ -2,7 +2,14 @@
 import { readFileSync } from "node:fs";
 import { argv, stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline";
-import { AngleMode, RpnCalculator, RpnError, formatStack, processLine } from "@brnwb/rpn32-core";
+import {
+  AngleMode,
+  BaseMode,
+  RpnCalculator,
+  RpnError,
+  formatStack,
+  processLine,
+} from "@brnwb/rpn32-core";
 
 type ReplInterface = ReturnType<typeof createInterface> & { history: string[] };
 
@@ -24,6 +31,7 @@ REPL commands:
   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh
   ln log exp chs 1/x
   deg rad grad    set trigonometry angle mode
+  dec hex oct bin set integer base mode for input and display
   enter           duplicate X with HP-style ENTER behavior
   lastx           recall the previous X value
   sto A / rcl A   store or recall variables A through Z and i
@@ -76,6 +84,10 @@ export async function main(args: string[] = argv.slice(2)): Promise<void> {
   await runRepl();
 }
 
+function formatCalculatorStack(calc: RpnCalculator, full: boolean = false): string {
+  return formatStack(calc.stack, calc.display, { baseMode: calc.baseMode, full });
+}
+
 function runExpression(expression: string): void {
   const calc = new RpnCalculator();
   try {
@@ -84,7 +96,7 @@ function runExpression(expression: string): void {
     if (messages.length > 0) {
       printMessages(messages);
     } else {
-      console.log(formatStack(calc.stack, calc.display));
+      console.log(formatCalculatorStack(calc));
     }
   } catch (error) {
     console.error(formatError(error));
@@ -104,14 +116,14 @@ async function runRepl(): Promise<void> {
   }) as ReplInterface;
 
   console.log("rpn32 — type 'help' for commands, 'quit' to exit");
-  console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
+  console.log(formatCalculatorStack(calc, fullStackDisplay));
   prompt(repl, calc);
 
   for await (const line of repl) {
     const command = line.trim().toLowerCase();
 
     if (!command) {
-      console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
+      console.log(formatCalculatorStack(calc, fullStackDisplay));
       prompt(repl, calc);
       continue;
     }
@@ -123,13 +135,13 @@ async function runRepl(): Promise<void> {
     }
     if (command === "stack") {
       fullStackDisplay = true;
-      console.log(formatStack(calc.stack, calc.display, { full: true }));
+      console.log(formatCalculatorStack(calc, true));
       prompt(repl, calc);
       continue;
     }
     if (command === "stack off") {
       fullStackDisplay = false;
-      console.log(formatStack(calc.stack, calc.display, { full: false }));
+      console.log(formatCalculatorStack(calc, false));
       prompt(repl, calc);
       continue;
     }
@@ -141,7 +153,7 @@ async function runRepl(): Promise<void> {
     }
 
     printMessages(calc.takeMessages());
-    console.log(formatStack(calc.stack, calc.display, { full: fullStackDisplay }));
+    console.log(formatCalculatorStack(calc, fullStackDisplay));
     prompt(repl, calc);
   }
 
@@ -164,9 +176,10 @@ function prompt(repl: ReplInterface, calc: RpnCalculator): void {
 }
 
 function promptFor(calc: RpnCalculator): string {
-  if (calc.angleMode === AngleMode.Rad) return "rpn(rad)> ";
-  if (calc.angleMode === AngleMode.Grad) return "rpn(grad)> ";
-  return "rpn> ";
+  const baseLabel = calc.baseMode === BaseMode.Dec ? "" : `/${calc.baseMode}`;
+  if (calc.angleMode === AngleMode.Rad) return `rpn(rad${baseLabel})> `;
+  if (calc.angleMode === AngleMode.Grad) return `rpn(grad${baseLabel})> `;
+  return baseLabel === "" ? "rpn> " : `rpn(${calc.baseMode})> `;
 }
 
 async function readStdin(): Promise<string> {

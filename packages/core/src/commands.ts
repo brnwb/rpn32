@@ -1,6 +1,7 @@
 import { Decimal } from "./vendor/decimal.js/decimal.mjs";
 import {
   AngleMode,
+  BaseMode,
   DISPLAY_SIGNIFICANT_DIGITS,
   DisplayMode,
   E,
@@ -9,6 +10,7 @@ import {
   RpnCalculator,
   RpnError,
   ZERO,
+  parseBaseInteger,
   parseDecimal,
   type BinaryOp,
   type UnaryOp,
@@ -64,7 +66,10 @@ export function processToken(calc: RpnCalculator, token: string): void {
   token = token.trim().toLowerCase();
   if (!token) return;
 
-  const number = parseDecimal(token);
+  if (setBaseMode(calc, token)) return;
+
+  const number =
+    calc.baseMode === BaseMode.Dec ? parseDecimal(token) : parseBaseInteger(token, calc.baseMode);
   if (number !== undefined) {
     calc.pushNumber(number);
     return;
@@ -160,6 +165,7 @@ export function processToken(calc: RpnCalculator, token: string): void {
 function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {
   return {
     angleMode: calc.angleMode,
+    baseMode: calc.baseMode,
     display: { ...calc.display },
     lastX: calc.lastX,
     liftEnabled: calc.liftEnabled,
@@ -171,6 +177,7 @@ function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {
 
 function restoreSnapshot(calc: RpnCalculator, snapshot: RpnCalculatorSnapshot): void {
   calc.angleMode = snapshot.angleMode;
+  calc.baseMode = snapshot.baseMode;
   calc.display = { ...snapshot.display };
   calc.lastX = snapshot.lastX;
   calc.liftEnabled = snapshot.liftEnabled;
@@ -181,12 +188,32 @@ function restoreSnapshot(calc: RpnCalculator, snapshot: RpnCalculatorSnapshot): 
 
 interface RpnCalculatorSnapshot {
   angleMode: AngleMode;
+  baseMode: BaseMode;
   display: RpnCalculator["display"];
   lastX: RpnCalculator["lastX"];
   liftEnabled: boolean;
   messages: RpnCalculator["messages"];
   stack: RpnCalculator["stack"];
   variables: RpnCalculator["variables"];
+}
+
+function setBaseMode(calc: RpnCalculator, token: string): boolean {
+  switch (token) {
+    case "dec":
+      calc.setBaseMode(BaseMode.Dec);
+      return true;
+    case "hex":
+      calc.setBaseMode(BaseMode.Hex);
+      return true;
+    case "oct":
+      calc.setBaseMode(BaseMode.Oct);
+      return true;
+    case "bin":
+      calc.setBaseMode(BaseMode.Bin);
+      return true;
+    default:
+      return false;
+  }
 }
 
 function processVariableCommand(
