@@ -28,5 +28,6 @@ Run from the repository root:
 - Add or update tests for calculator behavior changes.
 - Preserve four-level HP-style stack behavior: `T Z Y X`.
 - Preserve HP-style stack lift and `ENTER` behavior.
+- Preserve HP-style base mode behavior: `dec`, `hex`, `oct`, and `bin`; 36-bit two's-complement integer display in non-decimal modes; decimal values keep fractional parts across base changes; non-decimal arithmetic uses integer parts and returns integer results.
 - Invalid math operations should preserve the stack and throw `RpnError` with a useful message.
 - Do not add compatibility facades for unpublished APIs unless there is a clear reason.

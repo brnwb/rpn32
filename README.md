@@ -119,6 +119,19 @@ rpn(grad)> deg
 rpn>
 ```
 
+Integer base modes convert display and input mode:
+
+```text
+rpn> 125.99 hex
+7D
+rpn(hex)> oct
+175
+rpn(oct)> bin
+1111101
+rpn(bin)> dec
+125.99
+```
+
 Invalid operations preserve the stack and show a specific error when possible:
 
 ```text
