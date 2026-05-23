@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## [0.2.0] - 2026-05-23
 
 - Added explicit `dec`, `hex`, `oct`, and `bin` integer base modes for input and display.
