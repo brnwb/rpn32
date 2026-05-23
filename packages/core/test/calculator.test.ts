@@ -5,6 +5,7 @@ import {
   AngleMode,
   DisplayMode,
   RpnCalculator,
+  RpnError,
   ZERO,
   formatNumber,
   formatStack,
@@ -212,6 +213,22 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("0");
   });
 
+  test("numeric input accepts decimal and scientific notation", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "+1 -2 .5 5. 1e3 1e-3");
+    expectStack(calc, [d("0.5"), d(5), d(1000), d("0.001")]);
+  });
+
+  test("numeric input rejects non-decimal literal forms and rolls back the line", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "20");
+
+    expect(() => processLine(calc, "30 0x10 +")).toThrow('unknown token: "0x10"');
+    expect(() => processLine(calc, "30 0b10 +")).toThrow('unknown token: "0b10"');
+    expect(() => processLine(calc, "30 1_000 +")).toThrow('unknown token: "1_000"');
+    expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
   test("division and multiplication round consistently at internal precision", () => {
     const calc = new RpnCalculator();
     processLine(calc, "1 3 / 3 *");
@@ -222,6 +239,13 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     processLine(calc, "2 10 ^");
     expect(calc.x.toString()).toBe("1024");
+  });
+
+  test("unsafe integer powers are rejected and preserve stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "2 9007199254740993");
+    expect(() => processLine(calc, "^")).toThrow("invalid operation (exponent out of range)");
+    expectStack(calc, [ZERO, ZERO, d(2), d("9007199254740993")]);
   });
 
   test("negative base fractional power is rejected and preserves stack", () => {
@@ -301,6 +325,12 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("12.35");
   });
 
+  test("rnd avoids materializing huge fixed-point strings", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1.2345e9000000000000000 fix 2 rnd");
+    expect(calc.x.toString()).toBe("1.23e+9000000000000000");
+  });
+
   test("rnd rounds X internally according to scientific display format", () => {
     const calc = new RpnCalculator();
     processLine(calc, "12.3456 sci 3 rnd");
@@ -375,6 +405,33 @@ describe("RpnCalculator", () => {
     processLine(calc, "1e9000000000000000 10");
     expect(() => processLine(calc, "*")).toThrow("invalid operation (overflow)");
     expectStack(calc, [ZERO, ZERO, d("1e9000000000000000"), d(10)]);
+  });
+
+  test("decimal library errors are normalized and preserve calculator state", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "7 8 9 10 fix 2 rad 42 sto A 8 2 /");
+    const stack = [...calc.stack];
+    const lastX = calc.lastX;
+    const display = { ...calc.display };
+    const angleMode = calc.angleMode;
+    const variables = new Map(calc.variables);
+
+    const runInvalidDecimalOperation = (): void =>
+      calc.applyUnary(() => {
+        throw new Error("[DecimalError] Precision limit exceeded");
+      });
+
+    expect(runInvalidDecimalOperation).toThrow(RpnError);
+    expect(runInvalidDecimalOperation).toThrow("invalid operation (precision limit exceeded)");
+    expect(calc.stack.map((value) => value.toString())).toEqual(
+      stack.map((value) => value.toString()),
+    );
+    expect(calc.lastX.toString()).toBe(lastX.toString());
+    expect(calc.display).toEqual(display);
+    expect(calc.angleMode).toBe(angleMode);
+    expect([...calc.variables.entries()].map(([name, value]) => [name, value.toString()])).toEqual(
+      [...variables.entries()].map(([name, value]) => [name, value.toString()]),
+    );
   });
 
   test("default trig angle mode is degrees", () => {
@@ -463,6 +520,32 @@ describe("RpnCalculator", () => {
     expect(calc.x.toNumber()).toBeCloseTo(1, 14);
   });
 
+  test("degree quadrant trig values are exact", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "180 sin 90 cos 180 tan -90 sin -180 cos");
+    expectStack(calc, [ZERO, ZERO, d(-1), d(-1)]);
+  });
+
+  test("gradian quadrant trig values are exact", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "grad 200 sin 100 cos 200 tan -100 sin -200 cos");
+    expectStack(calc, [ZERO, ZERO, d(-1), d(-1)]);
+  });
+
+  test("tangent singularities report an error and preserve stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 2 3 4 rad 42 sto A");
+    const stack = [...calc.stack];
+    const variables = new Map(calc.variables);
+
+    expect(() => processLine(calc, "deg 90 tan")).toThrow("invalid operation (tangent undefined)");
+    expectStack(calc, stack);
+    expect(calc.angleMode).toBe(AngleMode.Rad);
+    expect([...calc.variables.entries()].map(([name, value]) => [name, value.toString()])).toEqual(
+      [...variables.entries()].map(([name, value]) => [name, value.toString()]),
+    );
+  });
+
   test("radian trig regression value", () => {
     const calc = new RpnCalculator();
     processLine(calc, "rad pi cos");
@@ -476,6 +559,22 @@ describe("RpnCalculator", () => {
     expect(calc.display.mode).toBe(DisplayMode.Fix);
     expect(calc.display.digits).toBe(2);
     expect(formatStack(calc.stack, calc.display)).toBe("3.33");
+  });
+
+  test("display mode digit counts must be plain decimal integers", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "10 fix 2");
+
+    expect(() => processLine(calc, "sci 0x3")).toThrow(
+      'display digit count must be an integer: "0x3"',
+    );
+    expect(() => processLine(calc, "sci 2.5")).toThrow(
+      'display digit count must be an integer: "2.5"',
+    );
+    expect(() => processLine(calc, "sci 12")).toThrow("display digit count must be from 0 to 11");
+    expect(calc.display.mode).toBe(DisplayMode.Fix);
+    expect(calc.display.digits).toBe(2);
+    expectStack(calc, [ZERO, ZERO, ZERO, d(10)]);
   });
 
   test("scientific display mode", () => {
@@ -517,6 +616,12 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     processLine(calc, "1234567890123 fix 2");
     expect(formatStack(calc.stack, calc.display)).toBe("1.23e+12");
+  });
+
+  test("fixed display avoids materializing huge fixed-point strings", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1e9000000000000000 fix 2");
+    expect(formatStack(calc.stack, calc.display)).toBe("1.00e+9000000000000000");
   });
 
   test("engineering display handles small numbers", () => {

@@ -50,7 +50,11 @@ export class StackUnderflowError extends RpnError {
   }
 }
 
+const DECIMAL_NUMBER_TOKEN = /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?$/i;
+
 export function parseDecimal(token: string): NumberValue | undefined {
+  if (!DECIMAL_NUMBER_TOKEN.test(token)) return undefined;
+
   try {
     const value = new Decimal(token);
     return value.isFinite() ? value : undefined;
@@ -188,7 +192,7 @@ export class RpnCalculator {
       result = op(this.x);
     } catch (error) {
       this.restore(previousStack, previousLastX, previousLiftEnabled);
-      throw error;
+      throw normalizeMathError(error);
     }
     if (!result.isFinite()) {
       this.restore(previousStack, previousLastX, previousLiftEnabled);
@@ -210,7 +214,7 @@ export class RpnCalculator {
       result = op(this.y, this.x);
     } catch (error) {
       this.restore(previousStack, previousLastX, previousLiftEnabled);
-      throw error;
+      throw normalizeMathError(error);
     }
     if (!result.isFinite()) {
       this.restore(previousStack, previousLastX, previousLiftEnabled);
@@ -278,4 +282,13 @@ function sortVariableNames(names: string[]): string[] {
 function nonFiniteResultMessage(result: NumberValue): string {
   if (!result.isNaN()) return "invalid operation (overflow)";
   return "invalid operation";
+}
+
+function normalizeMathError(error: unknown): unknown {
+  if (error instanceof RpnError) return error;
+  if (error instanceof Error && error.message.startsWith("[DecimalError] ")) {
+    const message = error.message.slice("[DecimalError] ".length);
+    return new RpnError(`invalid operation (${message.toLowerCase()})`);
+  }
+  return error;
 }

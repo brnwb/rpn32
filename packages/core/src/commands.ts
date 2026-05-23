@@ -8,6 +8,7 @@ import {
   PI,
   RpnCalculator,
   RpnError,
+  ZERO,
   parseDecimal,
   type BinaryOp,
   type UnaryOp,
@@ -199,7 +200,12 @@ function processVariableCommand(
 }
 
 function decimalPower(a: Decimal, b: Decimal): Decimal {
-  if (b.isInteger()) return a.pow(b.toNumber());
+  if (b.isInteger()) {
+    if (b.abs().gt(Number.MAX_SAFE_INTEGER)) {
+      throw new RpnError("invalid operation (exponent out of range)");
+    }
+    return a.pow(b.toNumber());
+  }
   return Decimal.pow(a, b);
 }
 
@@ -218,6 +224,10 @@ function factorial(value: Decimal): Decimal {
 function roundToDisplay(value: Decimal, display: RpnCalculator["display"]): Decimal {
   switch (display.mode) {
     case DisplayMode.Fix:
+      if (fixedWouldRoundToZero(value, display.digits)) return ZERO;
+      if (fixedWouldExceedDisplay(value, display.digits)) {
+        return value.toSignificantDigits(display.digits + 1);
+      }
       return new Decimal(value.toFixed(display.digits));
     case DisplayMode.Sci:
     case DisplayMode.Eng:
@@ -225,6 +235,14 @@ function roundToDisplay(value: Decimal, display: RpnCalculator["display"]): Deci
     case DisplayMode.All:
       return value.toSignificantDigits(DISPLAY_SIGNIFICANT_DIGITS);
   }
+}
+
+function fixedWouldRoundToZero(value: Decimal, digits: number): boolean {
+  return !value.isZero() && value.e < -digits;
+}
+
+function fixedWouldExceedDisplay(value: Decimal, digits: number): boolean {
+  return value.e >= 0 && value.e + 1 + digits > DISPLAY_SIGNIFICANT_DIGITS;
 }
 
 function trigOps(
@@ -245,9 +263,9 @@ function trigOps(
   | "atanh"
 > {
   return {
-    sin: (x) => Decimal.sin(calc.toRadians(x)),
-    cos: (x) => Decimal.cos(calc.toRadians(x)),
-    tan: (x) => Decimal.tan(calc.toRadians(x)),
+    sin: (x) => exactQuadrantTrig(calc, x, "sin") ?? Decimal.sin(calc.toRadians(x)),
+    cos: (x) => exactQuadrantTrig(calc, x, "cos") ?? Decimal.cos(calc.toRadians(x)),
+    tan: (x) => exactQuadrantTrig(calc, x, "tan") ?? Decimal.tan(calc.toRadians(x)),
     asin: (x) => calc.fromRadians(inverseCircularTrig(x, (value) => Decimal.asin(value))),
     acos: (x) => calc.fromRadians(inverseCircularTrig(x, (value) => Decimal.acos(value))),
     atan: (x) => calc.fromRadians(Decimal.atan(x)),
@@ -258,6 +276,43 @@ function trigOps(
     acosh: acosh,
     atanh: atanh,
   };
+}
+
+function exactQuadrantTrig(
+  calc: RpnCalculator,
+  x: Decimal,
+  op: "sin" | "cos" | "tan",
+): Decimal | undefined {
+  const unit =
+    calc.angleMode === AngleMode.Deg
+      ? new Decimal(90)
+      : calc.angleMode === AngleMode.Grad
+        ? new Decimal(100)
+        : undefined;
+  if (unit === undefined) return undefined;
+
+  const quarterTurns = x.div(unit);
+  if (!quarterTurns.isInteger()) return undefined;
+
+  const quadrant = positiveModulo(quarterTurns, 4);
+  if (op === "sin") {
+    if (quadrant === 0 || quadrant === 2) return new Decimal(0);
+    return new Decimal(quadrant === 1 ? 1 : -1);
+  }
+  if (op === "cos") {
+    if (quadrant === 1 || quadrant === 3) return new Decimal(0);
+    return new Decimal(quadrant === 0 ? 1 : -1);
+  }
+
+  if (quadrant === 1 || quadrant === 3) {
+    throw new RpnError("invalid operation (tangent undefined)");
+  }
+  return new Decimal(0);
+}
+
+function positiveModulo(value: Decimal, divisor: number): number {
+  const remainder = value.mod(divisor).toNumber();
+  return ((remainder % divisor) + divisor) % divisor;
 }
 
 function inverseCircularTrig(x: Decimal, op: (value: Decimal.Value) => Decimal): Decimal {
@@ -320,10 +375,12 @@ function setDisplayMode(
   mode: "fix" | "sci" | "eng",
   digitsToken: string,
 ): void {
-  const digits = Number(digitsToken);
-  if (!Number.isInteger(digits)) {
+  const normalizedDigitsToken = digitsToken.trim();
+  if (!/^[+-]?\d+$/.test(normalizedDigitsToken)) {
     throw new RpnError(`display digit count must be an integer: ${JSON.stringify(digitsToken)}`);
   }
+
+  const digits = Number(normalizedDigitsToken);
   if (digits < 0 || digits > MAX_DISPLAY_DECIMAL_PLACES) {
     throw new RpnError(`display digit count must be from 0 to ${MAX_DISPLAY_DECIMAL_PLACES}`);
   }
