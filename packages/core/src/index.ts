@@ -1,5 +1,6 @@
 export {
   AngleMode,
+  BaseMode,
   DisplayMode,
   E,
   DISPLAY_SIGNIFICANT_DIGITS,
@@ -10,6 +11,7 @@ export {
   RpnError,
   StackUnderflowError,
   ZERO,
+  parseBaseInteger,
   parseDecimal,
   type BinaryOp,
   type DisplaySettings,

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added explicit `dec`, `hex`, `oct`, and `bin` integer base modes for input and display.
+
 ## [0.1.8] - 2026-05-23
 
 - Declared Node.js `>=22.13.0` support for published packages and expanded CI coverage to Node 22 and 24.

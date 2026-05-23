@@ -1,5 +1,6 @@
 import { Decimal } from "./vendor/decimal.js/decimal.mjs";
 import {
+  BaseMode,
   DISPLAY_SIGNIFICANT_DIGITS,
   DisplayMode,
   MAX_DISPLAY_DECIMAL_PLACES,
@@ -12,7 +13,10 @@ import {
 export function formatNumber(
   value: NumberValue,
   display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES },
+  baseMode: BaseMode = BaseMode.Dec,
 ): string {
+  if (baseMode !== BaseMode.Dec) return formatBaseInteger(value, baseMode);
+
   if (display.mode === DisplayMode.Fix) return formatFixed(value, display.digits);
   if (display.mode === DisplayMode.Sci) return formatScientific(value, display.digits);
   if (display.mode === DisplayMode.Eng) return formatEngineering(value, display.digits);
@@ -77,14 +81,36 @@ function stripTrailingDecimalZeros(text: string): string {
 export function formatStack(
   stack: readonly NumberValue[],
   display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES },
-  options: { full?: boolean } = {},
+  options: { baseMode?: BaseMode; full?: boolean } = {},
 ): string {
   if (stack.length !== 4) throw new RpnError("expected a four-level stack: T Z Y X");
 
-  if (options.full !== true) return formatNumber(stack[3] ?? ZERO, display);
+  const baseMode = options.baseMode ?? BaseMode.Dec;
+  if (options.full !== true) return formatNumber(stack[3] ?? ZERO, display, baseMode);
 
   const labels = ["T", "Z", "Y", "X"];
   return stack
-    .map((value, index) => `${labels[index]}: ${formatNumber(value, display)}`)
+    .map((value, index) => `${labels[index]}: ${formatNumber(value, display, baseMode)}`)
     .join("  ");
+}
+
+function formatBaseInteger(value: NumberValue, baseMode: BaseMode): string {
+  if (!value.isInteger() || value.abs().gt(Number.MAX_SAFE_INTEGER)) return formatAll(value);
+
+  const radix = radixFor(baseMode);
+  const sign = value.isNegative() ? "-" : "";
+  return `${sign}${Math.abs(value.toNumber()).toString(radix).toUpperCase()}`;
+}
+
+function radixFor(baseMode: BaseMode): number {
+  switch (baseMode) {
+    case BaseMode.Hex:
+      return 16;
+    case BaseMode.Oct:
+      return 8;
+    case BaseMode.Bin:
+      return 2;
+    case BaseMode.Dec:
+      return 10;
+  }
 }

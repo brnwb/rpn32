@@ -140,6 +140,7 @@ error: invalid operation (divide by zero)
 - Trig/log/exponential: `sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh ln log exp`
 - Other numeric functions: `chs 1/x`
 - Angle modes: `deg`, `rad`, `grad`
+- Integer base modes: `dec`, `hex`, `oct`, `bin`
 - Variables: `sto A`, `rcl A`, `view A`, `vars` for variables `A` through `Z` and `i`
 - Stack: `enter`, `lastx`, `swap`, `drop`, `clx`, `clear`
 - Clearing: `clear var`, `clear all`

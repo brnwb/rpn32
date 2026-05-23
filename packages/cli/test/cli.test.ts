@@ -14,6 +14,7 @@ describe("rpn32 CLI", () => {
     expect(stdout).toContain("Usage:");
     expect(stdout).toContain("rpn32 '3 2 +'");
     expect(stdout).toContain("deg rad grad");
+    expect(stdout).toContain("dec hex oct bin");
     expect(stderr).toBe("");
   });
 
@@ -34,6 +35,16 @@ describe("rpn32 CLI", () => {
     ]);
 
     expect(stdout).toBe("5\n");
+    expect(stderr).toBe("");
+  });
+
+  test("evaluates base-mode expressions", async () => {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [
+      "packages/cli/dist/cli.js",
+      "hex ff a +",
+    ]);
+
+    expect(stdout).toBe("109\n");
     expect(stderr).toBe("");
   });
 

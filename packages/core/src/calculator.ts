@@ -31,6 +31,13 @@ export enum AngleMode {
   Grad = "grad",
 }
 
+export enum BaseMode {
+  Dec = "dec",
+  Hex = "hex",
+  Oct = "oct",
+  Bin = "bin",
+}
+
 export interface DisplaySettings {
   mode: DisplayMode;
   digits: number;
@@ -63,6 +70,29 @@ export function parseDecimal(token: string): NumberValue | undefined {
   }
 }
 
+export function parseBaseInteger(token: string, baseMode: BaseMode): NumberValue | undefined {
+  const spec = baseSpec(baseMode);
+  if (spec === undefined) return undefined;
+
+  const normalized = token.trim();
+  const isNegative = normalized.startsWith("-");
+  const digits =
+    normalized.startsWith("-") || normalized.startsWith("+") ? normalized.slice(1) : normalized;
+  if (digits === "" || !spec.digits.test(digits)) return undefined;
+
+  let result = 0n;
+  const radix = BigInt(spec.radix);
+  for (const digit of digits.toLowerCase()) {
+    result = result * radix + BigInt(spec.valueOf(digit));
+  }
+  if (result > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RpnError("base input requires a safe integer");
+  }
+
+  const signedResult = isNegative ? -result : result;
+  return new Decimal(signedResult.toString());
+}
+
 export class RpnCalculator {
   stack: RpnStack = [ZERO, ZERO, ZERO, ZERO];
   messages: string[] = [];
@@ -70,6 +100,7 @@ export class RpnCalculator {
   lastX: NumberValue = ZERO;
   display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES };
   angleMode: AngleMode = AngleMode.Deg;
+  baseMode: BaseMode = BaseMode.Dec;
   variables = new Map<string, NumberValue>();
 
   get x(): NumberValue {
@@ -179,6 +210,10 @@ export class RpnCalculator {
 
   setAngleMode(mode: AngleMode): void {
     this.angleMode = mode;
+  }
+
+  setBaseMode(mode: BaseMode): void {
+    this.baseMode = mode;
   }
 
   applyUnary(op: UnaryOp): void {
@@ -291,4 +326,35 @@ function normalizeMathError(error: unknown): unknown {
     return new RpnError(`invalid operation (${message.toLowerCase()})`);
   }
   return error;
+}
+
+function baseSpec(baseMode: BaseMode):
+  | {
+      digits: RegExp;
+      radix: number;
+      valueOf: (digit: string) => number;
+    }
+  | undefined {
+  switch (baseMode) {
+    case BaseMode.Hex:
+      return {
+        digits: /^[0-9a-f]+$/i,
+        radix: 16,
+        valueOf: (digit) => Number.parseInt(digit, 16),
+      };
+    case BaseMode.Oct:
+      return {
+        digits: /^[0-7]+$/,
+        radix: 8,
+        valueOf: (digit) => Number.parseInt(digit, 8),
+      };
+    case BaseMode.Bin:
+      return {
+        digits: /^[01]+$/,
+        radix: 2,
+        valueOf: (digit) => Number.parseInt(digit, 2),
+      };
+    case BaseMode.Dec:
+      return undefined;
+  }
 }
