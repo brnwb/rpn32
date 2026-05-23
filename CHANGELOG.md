@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.1.8] - 2026-05-23
 
 - Declared Node.js `>=22.13.0` support for published packages and expanded CI coverage to Node 22 and 24.
 - Normalized decimal-library math failures into `RpnError` messages while preserving calculator state.
