@@ -230,6 +230,41 @@ describe("RpnCalculator", () => {
     expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
   });
 
+  test("fraction input parses proper and mixed fractions", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "1..2 1.1.2 -1.1.2");
+    expectStack(calc, [ZERO, d("0.5"), d("1.5"), d("-1.5")]);
+    expect(calc.display.fraction.enabled).toBe(true);
+    expect(formatStack(calc.stack, calc.display)).toBe("-1 1/2");
+  });
+
+  test("fraction input enables fraction display and works with arithmetic", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "1.1.2 3..4 +");
+    expect(calc.x.toString()).toBe("2.25");
+    expect(formatStack(calc.stack, calc.display)).toBe("2 1/4");
+  });
+
+  test("invalid fraction input rolls back the whole line", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "20");
+
+    expect(() => processLine(calc, "1..0")).toThrow("fraction denominator must not be zero");
+    expect(calc.display.fraction.enabled).toBe(false);
+    expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
+  test("base modes do not parse fraction input", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "hex a");
+
+    expect(() => processLine(calc, "1..2")).toThrow('unknown token: "1..2"');
+    expect(calc.display.fraction.enabled).toBe(false);
+    expectStack(calc, [ZERO, ZERO, ZERO, d(10)]);
+  });
+
   test("base mode commands parse and display integer values", () => {
     const calc = new RpnCalculator();
 
@@ -411,13 +446,13 @@ describe("RpnCalculator", () => {
 
   test("integer and fractional parts", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "12.345 int 12.345 frac");
+    processLine(calc, "12.345 int 12.345 fpart");
     expectStack(calc, [ZERO, ZERO, d(12), d("0.345")]);
   });
 
   test("integer and fractional parts preserve sign", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "-12.345 int -12.345 frac");
+    processLine(calc, "-12.345 int -12.345 fpart");
     expectStack(calc, [ZERO, ZERO, d(-12), d("-0.345")]);
   });
 
@@ -443,6 +478,33 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     processLine(calc, "12.3456 sci 3 rnd");
     expect(calc.x.toString()).toBe("12.35");
+  });
+
+  test("rnd rounds X internally according to fraction display format", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "1.2 frac 4 rnd");
+    expect(calc.x.toString()).toBe("1.25");
+    expect(formatStack(calc.stack, calc.display)).toBe("1 1/4");
+
+    processLine(calc, "1.234 frac 100 rnd");
+    expect(calc.x.toString()).toBe("1.23404255319149");
+    expect(formatStack(calc.stack, calc.display)).toBe("1 11/47");
+  });
+
+  test("rnd preserves lastx", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "8 2 /");
+    expect(calc.lastX.toString()).toBe("2");
+
+    processLine(calc, "1.2 frac 4 rnd");
+    expect(calc.x.toString()).toBe("1.25");
+    expect(calc.lastX.toString()).toBe("2");
+
+    processLine(calc, "1.234 fix 1 round");
+    expect(calc.x.toString()).toBe("1.2");
+    expect(calc.lastX.toString()).toBe("2");
   });
 
   test("round is an alias for rnd", () => {
@@ -702,6 +764,66 @@ describe("RpnCalculator", () => {
     processLine(calc, "5 fix 2 all");
     expect(calc.display.mode).toBe(DisplayMode.All);
     expect(formatStack(calc.stack, calc.display)).toBe("5");
+  });
+
+  test("fraction display toggles decimal values without changing the stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1.25 frac");
+
+    expect(calc.x.toString()).toBe("1.25");
+    expect(calc.display.fraction.enabled).toBe(true);
+    expect(formatStack(calc.stack, calc.display)).toBe("1 1/4");
+
+    processLine(calc, "frac");
+    expect(calc.display.fraction.enabled).toBe(false);
+    expect(formatStack(calc.stack, calc.display)).toBe("1.25");
+  });
+
+  test("fraction display uses a configurable maximum denominator", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "1.33333333333333 frac 8");
+    expect(calc.display.fraction.maxDenominator).toBe(8);
+    expect(formatStack(calc.stack, calc.display)).toBe("1 1/3");
+
+    processLine(calc, "1.2 frac 4");
+    expect(formatStack(calc.stack, calc.display)).toBe("1 1/4");
+
+    processLine(calc, "frac 0");
+    expect(calc.display.fraction.maxDenominator).toBe(4095);
+  });
+
+  test("fraction display handles negative and improper values", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "-1.25 frac");
+    expect(formatStack(calc.stack, calc.display)).toBe("-1 1/4");
+
+    processLine(calc, "2.99999999999999");
+    expect(formatStack(calc.stack, calc.display)).toBe("3");
+  });
+
+  test("decimal display modes turn fraction display off", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "1.25 frac fix 2");
+    expect(calc.display.fraction.enabled).toBe(false);
+    expect(formatStack(calc.stack, calc.display)).toBe("1.25");
+
+    processLine(calc, "frac all");
+    expect(calc.display.fraction.enabled).toBe(false);
+  });
+
+  test("invalid fraction denominator rolls back display changes", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1.25 frac 8");
+
+    expect(() => processLine(calc, "frac 4096")).toThrow(
+      "fraction denominator must be an integer from 0 to 4095",
+    );
+    expect(calc.display.fraction.enabled).toBe(true);
+    expect(calc.display.fraction.maxDenominator).toBe(8);
+    expect(formatStack(calc.stack, calc.display)).toBe("1 1/4");
   });
 
   test("fixed display rounds positive and negative values", () => {

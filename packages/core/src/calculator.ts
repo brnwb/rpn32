@@ -6,6 +6,8 @@ import { Decimal } from "./vendor/decimal.js/decimal.mjs";
 export const INTERNAL_PRECISION = 15;
 export const DISPLAY_SIGNIFICANT_DIGITS = 12;
 export const MAX_DISPLAY_DECIMAL_PLACES = DISPLAY_SIGNIFICANT_DIGITS - 1;
+export const DEFAULT_FRACTION_DENOMINATOR = 4095;
+export const MAX_FRACTION_DENOMINATOR = 4095;
 
 Decimal.set({ precision: INTERNAL_PRECISION, rounding: Decimal.ROUND_HALF_UP });
 
@@ -49,6 +51,10 @@ export enum BaseMode {
 export interface DisplaySettings {
   mode: DisplayMode;
   digits: number;
+  fraction: {
+    enabled: boolean;
+    maxDenominator: number;
+  };
 }
 
 export class RpnError extends Error {
@@ -66,6 +72,7 @@ export class StackUnderflowError extends RpnError {
 }
 
 const DECIMAL_NUMBER_TOKEN = /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?$/i;
+const FRACTION_NUMBER_TOKEN = /^([+-]?)(?:(\d+)\.(\d+)\.(\d+)|(\d+)\.\.(\d+))$/;
 
 export function parseDecimal(token: string): NumberValue | undefined {
   if (!DECIMAL_NUMBER_TOKEN.test(token)) return undefined;
@@ -76,6 +83,31 @@ export function parseDecimal(token: string): NumberValue | undefined {
   } catch {
     return undefined;
   }
+}
+
+export function parseFraction(token: string): NumberValue | undefined {
+  const match = token.match(FRACTION_NUMBER_TOKEN);
+  if (!match) return undefined;
+
+  const [
+    ,
+    sign = "",
+    mixedIntegerPart = "",
+    mixedNumeratorPart = "",
+    mixedDenominatorPart = "",
+    numeratorPart = "",
+    denominatorPart = "",
+  ] = match;
+
+  const numerator = new Decimal(mixedNumeratorPart || numeratorPart);
+  const denominator = new Decimal(mixedDenominatorPart || denominatorPart);
+  if (denominator.isZero()) {
+    throw new RpnError("fraction denominator must not be zero");
+  }
+
+  const mixedInteger = mixedIntegerPart === "" ? ZERO : new Decimal(mixedIntegerPart);
+  const magnitude = mixedInteger.plus(numerator.div(denominator));
+  return sign === "-" ? magnitude.neg() : magnitude;
 }
 
 export function parseBaseInteger(token: string, baseMode: BaseMode): NumberValue | undefined {
@@ -124,8 +156,46 @@ export function toBaseWord(value: bigint): bigint {
   return value < 0n ? value + BASE_UNSIGNED_LIMIT : value;
 }
 
+export function approximateFraction(value: NumberValue, maxDenominator: number): [bigint, bigint] {
+  const limit = Math.max(1, maxDenominator);
+  let bestNumerator = 0n;
+  let bestDenominator = 1n;
+  let bestError: Decimal | undefined;
+
+  for (let denominator = 1; denominator <= limit; denominator += 1) {
+    const denominatorDecimal = new Decimal(denominator);
+    const numeratorDecimal = value.times(denominator).round();
+    const error = value.minus(numeratorDecimal.div(denominatorDecimal)).abs();
+
+    if (
+      bestError === undefined ||
+      error.lt(bestError) ||
+      (error.eq(bestError) && denominator < Number(bestDenominator))
+    ) {
+      bestError = error;
+      bestNumerator = BigInt(numeratorDecimal.toFixed(0));
+      bestDenominator = BigInt(denominator);
+      if (error.isZero()) break;
+    }
+  }
+
+  const divisor = gcd(bestNumerator, bestDenominator);
+  return [bestNumerator / divisor, bestDenominator / divisor];
+}
+
 function fromBaseWord(value: bigint): bigint {
   return value >= BASE_SIGN_BIT ? value - BASE_UNSIGNED_LIMIT : value;
+}
+
+function gcd(a: bigint, b: bigint): bigint {
+  let left = a < 0n ? -a : a;
+  let right = b < 0n ? -b : b;
+  while (right !== 0n) {
+    const next = left % right;
+    left = right;
+    right = next;
+  }
+  return left === 0n ? 1n : left;
 }
 
 export class RpnCalculator {
@@ -133,7 +203,14 @@ export class RpnCalculator {
   messages: string[] = [];
   liftEnabled = true;
   lastX: NumberValue = ZERO;
-  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES };
+  display: DisplaySettings = {
+    mode: DisplayMode.All,
+    digits: MAX_DISPLAY_DECIMAL_PLACES,
+    fraction: {
+      enabled: false,
+      maxDenominator: DEFAULT_FRACTION_DENOMINATOR,
+    },
+  };
   angleMode: AngleMode = AngleMode.Deg;
   baseMode: BaseMode = BaseMode.Dec;
   variables = new Map<string, NumberValue>();
@@ -241,6 +318,7 @@ export class RpnCalculator {
   setDisplayMode(mode: DisplayMode, digits: number): void {
     this.display.mode = mode;
     this.display.digits = digits;
+    this.display.fraction.enabled = false;
   }
 
   setAngleMode(mode: AngleMode): void {
@@ -249,6 +327,26 @@ export class RpnCalculator {
 
   setBaseMode(mode: BaseMode): void {
     this.baseMode = mode;
+  }
+
+  toggleFractionDisplay(): void {
+    this.display.fraction.enabled = !this.display.fraction.enabled;
+  }
+
+  setFractionDisplay(maxDenominator: number): void {
+    if (
+      !Number.isInteger(maxDenominator) ||
+      maxDenominator < 0 ||
+      maxDenominator > MAX_FRACTION_DENOMINATOR
+    ) {
+      throw new RpnError(
+        `fraction denominator must be an integer from 0 to ${MAX_FRACTION_DENOMINATOR}`,
+      );
+    }
+
+    this.display.fraction.maxDenominator =
+      maxDenominator === 0 ? DEFAULT_FRACTION_DENOMINATOR : maxDenominator;
+    this.display.fraction.enabled = true;
   }
 
   applyUnary(op: UnaryOp): void {
