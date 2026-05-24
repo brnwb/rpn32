@@ -1,11 +1,13 @@
 import { Decimal } from "./vendor/decimal.js/decimal.mjs";
 import {
   BaseMode,
+  DEFAULT_FRACTION_DENOMINATOR,
   DISPLAY_SIGNIFICANT_DIGITS,
   DisplayMode,
   MAX_DISPLAY_DECIMAL_PLACES,
   RpnError,
   ZERO,
+  approximateFraction,
   baseIntegerFromDecimal,
   toBaseWord,
   type DisplaySettings,
@@ -14,10 +16,17 @@ import {
 
 export function formatNumber(
   value: NumberValue,
-  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES },
+  display: DisplaySettings = {
+    mode: DisplayMode.All,
+    digits: MAX_DISPLAY_DECIMAL_PLACES,
+    fraction: { enabled: false, maxDenominator: DEFAULT_FRACTION_DENOMINATOR },
+  },
   baseMode: BaseMode = BaseMode.Dec,
 ): string {
   if (baseMode !== BaseMode.Dec) return formatBaseInteger(value, baseMode);
+  if (display.fraction.enabled) {
+    return formatFraction(value, display.fraction.maxDenominator);
+  }
 
   if (display.mode === DisplayMode.Fix) return formatFixed(value, display.digits);
   if (display.mode === DisplayMode.Sci) return formatScientific(value, display.digits);
@@ -82,7 +91,11 @@ function stripTrailingDecimalZeros(text: string): string {
 
 export function formatStack(
   stack: readonly NumberValue[],
-  display: DisplaySettings = { mode: DisplayMode.All, digits: MAX_DISPLAY_DECIMAL_PLACES },
+  display: DisplaySettings = {
+    mode: DisplayMode.All,
+    digits: MAX_DISPLAY_DECIMAL_PLACES,
+    fraction: { enabled: false, maxDenominator: DEFAULT_FRACTION_DENOMINATOR },
+  },
   options: { baseMode?: BaseMode; full?: boolean } = {},
 ): string {
   if (stack.length !== 4) throw new RpnError("expected a four-level stack: T Z Y X");
@@ -94,6 +107,25 @@ export function formatStack(
   return stack
     .map((value, index) => `${labels[index]}: ${formatNumber(value, display, baseMode)}`)
     .join("  ");
+}
+
+function formatFraction(value: NumberValue, maxDenominator: number): string {
+  if (value.isZero()) return "0";
+  if (!value.isFinite()) return formatAll(value);
+
+  const sign = value.isNegative() ? "-" : "";
+  const absolute = value.abs();
+  const integerPart = absolute.trunc();
+  const fractionPart = absolute.minus(integerPart);
+  if (fractionPart.isZero()) return `${sign}${integerPart.toFixed(0)}`;
+
+  const [numerator, denominator] = approximateFraction(fractionPart, maxDenominator);
+  if (numerator === 0n) return `${sign}${integerPart.toFixed(0)}`;
+
+  const integer = BigInt(integerPart.toFixed(0));
+  if (numerator === denominator) return `${sign}${integer + 1n}`;
+  if (integer === 0n) return `${sign}${numerator}/${denominator}`;
+  return `${sign}${integer} ${numerator}/${denominator}`;
 }
 
 function formatBaseInteger(value: NumberValue, baseMode: BaseMode): string {

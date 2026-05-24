@@ -3,17 +3,21 @@ import {
   AngleMode,
   BaseMode,
   DISPLAY_SIGNIFICANT_DIGITS,
+  type DisplaySettings,
   DisplayMode,
   E,
+  MAX_FRACTION_DENOMINATOR,
   MAX_DISPLAY_DECIMAL_PLACES,
   PI,
   RpnCalculator,
   RpnError,
   ZERO,
+  approximateFraction,
   baseIntegerFromDecimal,
   clampBaseInteger,
   parseBaseInteger,
   parseDecimal,
+  parseFraction,
   type BinaryOp,
   type UnaryOp,
 } from "./calculator.js";
@@ -44,6 +48,15 @@ function processTokensUnchecked(calc: RpnCalculator, tokens: Iterable<string>): 
       }
       setDisplayMode(calc, token, digitsToken);
       index += 2;
+    } else if (token === "frac") {
+      const denominatorToken = tokenList[index + 1];
+      if (denominatorToken !== undefined && isPlainIntegerToken(denominatorToken)) {
+        setFractionDisplay(calc, denominatorToken);
+        index += 2;
+      } else {
+        calc.toggleFractionDisplay();
+        index += 1;
+      }
     } else if (token === "sto" || token === "rcl" || token === "view") {
       const variableToken = tokenList[index + 1];
       if (variableToken === undefined) {
@@ -70,10 +83,15 @@ export function processToken(calc: RpnCalculator, token: string): void {
 
   if (setBaseMode(calc, token)) return;
 
-  const number =
-    calc.baseMode === BaseMode.Dec ? parseDecimal(token) : parseBaseInteger(token, calc.baseMode);
-  if (number !== undefined) {
-    calc.pushNumber(number);
+  const parsedInput =
+    calc.baseMode === BaseMode.Dec
+      ? parseDecimalInput(token)
+      : { isFraction: false, value: parseBaseInteger(token, calc.baseMode) };
+  if (parsedInput.value !== undefined) {
+    calc.pushNumber(parsedInput.value);
+    if (parsedInput.isFraction) {
+      calc.setFractionDisplay(0);
+    }
     return;
   }
 
@@ -89,11 +107,9 @@ export function processToken(calc: RpnCalculator, token: string): void {
     exp: (x) => Decimal.exp(x),
     abs: (x) => x.abs(),
     int: (x) => x.trunc(),
-    frac: fractionalPart,
+    fpart: fractionalPart,
     floor: (x) => x.floor(),
     ceil: (x) => x.ceil(),
-    rnd: (x) => roundToDisplay(x, calc.display),
-    round: (x) => roundToDisplay(x, calc.display),
     chs: (x) => x.neg(),
     neg: (x) => x.neg(),
     "1/x": reciprocal,
@@ -110,6 +126,13 @@ export function processToken(calc: RpnCalculator, token: string): void {
   }
 
   switch (token) {
+    case "rnd":
+    case "round": {
+      const lastX = calc.lastX;
+      calc.applyUnary((x) => roundToDisplay(x, calc.display));
+      calc.lastX = lastX;
+      return;
+    }
     case "enter":
     case "dup":
       calc.enter();
@@ -131,7 +154,7 @@ export function processToken(calc: RpnCalculator, token: string): void {
       calc.recallLastX();
       return;
     case "all":
-      calc.display.mode = DisplayMode.All;
+      calc.setDisplayMode(DisplayMode.All, calc.display.digits);
       return;
     case "vars":
       calc.listVariables();
@@ -154,6 +177,12 @@ export function processToken(calc: RpnCalculator, token: string): void {
     default:
       throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
   }
+}
+
+function parseDecimalInput(token: string): { isFraction: boolean; value: Decimal | undefined } {
+  const fraction = parseFraction(token);
+  if (fraction !== undefined) return { isFraction: true, value: fraction };
+  return { isFraction: false, value: parseDecimal(token) };
 }
 
 function binaryOpsFor(calc: RpnCalculator): Record<string, BinaryOp> {
@@ -213,7 +242,7 @@ function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {
   return {
     angleMode: calc.angleMode,
     baseMode: calc.baseMode,
-    display: { ...calc.display },
+    display: cloneDisplay(calc.display),
     lastX: calc.lastX,
     liftEnabled: calc.liftEnabled,
     messages: [...calc.messages],
@@ -225,7 +254,7 @@ function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {
 function restoreSnapshot(calc: RpnCalculator, snapshot: RpnCalculatorSnapshot): void {
   calc.angleMode = snapshot.angleMode;
   calc.baseMode = snapshot.baseMode;
-  calc.display = { ...snapshot.display };
+  calc.display = cloneDisplay(snapshot.display);
   calc.lastX = snapshot.lastX;
   calc.liftEnabled = snapshot.liftEnabled;
   calc.messages = [...snapshot.messages];
@@ -263,6 +292,14 @@ function setBaseMode(calc: RpnCalculator, token: string): boolean {
   }
 }
 
+function cloneDisplay(display: DisplaySettings): DisplaySettings {
+  return {
+    mode: display.mode,
+    digits: display.digits,
+    fraction: { ...display.fraction },
+  };
+}
+
 function processVariableCommand(
   calc: RpnCalculator,
   command: "sto" | "rcl" | "view",
@@ -296,6 +333,9 @@ function factorial(value: Decimal): Decimal {
 }
 
 function roundToDisplay(value: Decimal, display: RpnCalculator["display"]): Decimal {
+  if (display.fraction.enabled)
+    return roundToFractionDisplay(value, display.fraction.maxDenominator);
+
   switch (display.mode) {
     case DisplayMode.Fix:
       if (fixedWouldRoundToZero(value, display.digits)) return ZERO;
@@ -309,6 +349,21 @@ function roundToDisplay(value: Decimal, display: RpnCalculator["display"]): Deci
     case DisplayMode.All:
       return value.toSignificantDigits(DISPLAY_SIGNIFICANT_DIGITS);
   }
+}
+
+function roundToFractionDisplay(value: Decimal, maxDenominator: number): Decimal {
+  if (value.isZero()) return ZERO;
+
+  const sign = value.isNegative() ? -1 : 1;
+  const absolute = value.abs();
+  const integerPart = absolute.trunc();
+  const fractionPart = absolute.minus(integerPart);
+  const [numerator, denominator] = approximateFraction(fractionPart, maxDenominator);
+  const roundedMagnitude = new Decimal(integerPart.toFixed(0)).plus(
+    new Decimal(numerator.toString()).div(denominator.toString()),
+  );
+
+  return sign < 0 ? roundedMagnitude.neg() : roundedMagnitude;
 }
 
 function fixedWouldRoundToZero(value: Decimal, digits: number): boolean {
@@ -460,4 +515,19 @@ function setDisplayMode(
   }
 
   calc.setDisplayMode(mode as DisplayMode, digits);
+}
+
+function setFractionDisplay(calc: RpnCalculator, denominatorToken: string): void {
+  const denominator = Number(denominatorToken.trim());
+  if (!Number.isInteger(denominator)) {
+    throw new RpnError(
+      `fraction denominator must be an integer from 0 to ${MAX_FRACTION_DENOMINATOR}`,
+    );
+  }
+
+  calc.setFractionDisplay(denominator);
+}
+
+function isPlainIntegerToken(token: string): boolean {
+  return /^[+-]?\d+$/.test(token.trim());
 }

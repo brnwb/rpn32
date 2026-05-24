@@ -29,5 +29,6 @@ Run from the repository root:
 - Preserve four-level HP-style stack behavior: `T Z Y X`.
 - Preserve HP-style stack lift and `ENTER` behavior.
 - Preserve HP-style base mode behavior: `dec`, `hex`, `oct`, and `bin`; 36-bit two's-complement integer display in non-decimal modes; decimal values keep fractional parts across base changes; non-decimal arithmetic uses integer parts and returns integer results.
+- Preserve HP-style fraction behavior: fraction input uses tokens like `1..2` and `1.1.2`, `frac` toggles fraction display, `frac n` sets the maximum denominator up to 4095 and turns fraction display on, and decimal display modes turn fraction display off.
 - Invalid math operations should preserve the stack and throw `RpnError` with a useful message.
 - Do not add compatibility facades for unpublished APIs unless there is a clear reason.

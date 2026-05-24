@@ -26,8 +26,9 @@ Usage:
 
 REPL commands:
   numbers         push values onto the stack, e.g. 3 2 +
+  fractions       enter n/d as n..d or i n/d as i.n.d
   + - * / ^       arithmetic
-  sqrt sq ! fact mod abs int frac floor ceil rnd round
+  sqrt sq ! fact mod abs int fpart floor ceil rnd round
   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh
   ln log exp chs 1/x
   deg rad grad    set trigonometry angle mode
@@ -44,6 +45,7 @@ REPL commands:
   fix n           show n digits after the decimal point
   sci n           show scientific notation with n decimal places
   eng n           show engineering notation with n decimal places
+  frac [n]        toggle fraction display, or set max denominator n
   all             show compact 12-digit display
   stack           show all stack registers after each entry
   stack off       return to compact display

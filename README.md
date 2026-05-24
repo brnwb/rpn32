@@ -148,8 +148,9 @@ error: invalid operation (divide by zero)
 ## Current commands
 
 - Numbers push onto the stack
+- Fraction input: `n..d` for `n/d`, `i.n.d` for `i n/d`
 - Arithmetic: `+ - * / ^`
-- Math: `sqrt sq ! fact mod abs int frac floor ceil rnd round`
+- Math: `sqrt sq ! fact mod abs int fpart floor ceil rnd round`
 - Trig/log/exponential: `sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh ln log exp`
 - Other numeric functions: `chs 1/x`
 - Angle modes: `deg`, `rad`, `grad`
@@ -157,12 +158,15 @@ error: invalid operation (divide by zero)
 - Variables: `sto A`, `rcl A`, `view A`, `vars` for variables `A` through `Z` and `i`
 - Stack: `enter`, `lastx`, `swap`, `drop`, `clx`, `clear`
 - Clearing: `clear var`, `clear all`
-- Display modes: `fix n`, `sci n`, `eng n`, `all`
+- Display modes: `fix n`, `sci n`, `eng n`, `frac`, `frac n`, `all`
 - Full stack display: `stack`, `stack off`
 - Constants: `pi`, `e`
 - REPL: `help`, `quit`
 
 Base modes follow the HP 32SII's 36-bit, two's-complement integer model. Changing base changes display and input mode without truncating the stored decimal value, but arithmetic in `hex`, `oct`, and `bin` uses integer parts and returns integer results.
+
+Fraction input and display follow the HP 32SII model: `1..2` enters `1/2`, `1.1.2` enters `1 1/2`, `frac` toggles fraction display, `frac n` sets the maximum denominator up to 4095 and turns fraction display on, and decimal display modes turn fraction display off. The `fpart` command returns the fractional part of `X`.
+In fraction display, `rnd` changes `X` to the decimal value of the displayed fraction.
 
 A few convenience aliases are currently accepted: `dup`, `xy`, `pow`, `fact`, and `neg`.
 
