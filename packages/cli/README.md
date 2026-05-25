@@ -1,4 +1,4 @@
-# @brnwb/rpn32
+# @brnwb/rpn32-cli
 
 Terminal CLI for `rpn32`, an HP 32SII-inspired RPN calculator written in TypeScript.
 

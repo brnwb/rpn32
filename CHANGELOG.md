@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Renamed CLI npm package from `@brnwb/rpn32` to `@brnwb/rpn32-cli`.
+
 ## [0.3.0] - 2026-05-24
 
 - Changed `frac` to toggle fraction display, added `frac n` for maximum denominator, added HP-style fraction entry tokens like `1..2` and `1.1.2`, made `rnd` round to the displayed fraction, and renamed the fractional-part command to `fpart`.
