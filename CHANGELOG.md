@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## [0.3.1] - 2026-05-25
 
 - Renamed CLI npm package from `@brnwb/rpn32` to `@brnwb/rpn32-cli`.
