@@ -6,9 +6,9 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "clean": "pnpm --filter @brnwb/rpn32-core run clean && pnpm --filter @brnwb/rpn32 run clean",
-    "build": "pnpm --filter @brnwb/rpn32-core run build && pnpm --filter @brnwb/rpn32 run build",
-    "dev": "pnpm --filter @brnwb/rpn32-core run build && pnpm --filter @brnwb/rpn32 run dev",
+    "clean": "pnpm --filter @brnwb/rpn32-core run clean && pnpm --filter @brnwb/rpn32-cli run clean",
+    "build": "pnpm --filter @brnwb/rpn32-core run build && pnpm --filter @brnwb/rpn32-cli run build",
+    "dev": "pnpm --filter @brnwb/rpn32-core run build && pnpm --filter @brnwb/rpn32-cli run dev",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
