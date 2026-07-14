@@ -1,26 +1,22 @@
 import { Decimal } from "./vendor/decimal.js/decimal.mjs";
 import {
   BaseMode,
-  DEFAULT_FRACTION_DENOMINATOR,
   DISPLAY_SIGNIFICANT_DIGITS,
   DisplayMode,
-  MAX_DISPLAY_DECIMAL_PLACES,
   RpnError,
   ZERO,
   approximateFraction,
   baseIntegerFromDecimal,
+  createDefaultDisplaySettings,
   toBaseWord,
   type DisplaySettings,
   type NumberValue,
+  type ReadonlyDisplaySettings,
 } from "./calculator.js";
 
 export function formatNumber(
   value: NumberValue,
-  display: DisplaySettings = {
-    mode: DisplayMode.All,
-    digits: MAX_DISPLAY_DECIMAL_PLACES,
-    fraction: { enabled: false, maxDenominator: DEFAULT_FRACTION_DENOMINATOR },
-  },
+  display: DisplaySettings | ReadonlyDisplaySettings = createDefaultDisplaySettings(),
   baseMode: BaseMode = BaseMode.Dec,
 ): string {
   if (baseMode !== BaseMode.Dec) return formatBaseInteger(value, baseMode);
@@ -68,11 +64,11 @@ function formatEngineering(value: NumberValue, digits: number): string {
   return `${mantissa.toFixed(digits)}e${formatExponent(engineeringExponent)}`;
 }
 
-function fixedWouldRoundToZero(value: NumberValue, digits: number): boolean {
+export function fixedWouldRoundToZero(value: NumberValue, digits: number): boolean {
   return !value.isZero() && value.e < -digits;
 }
 
-function fixedWouldExceedDisplay(value: NumberValue, digits: number): boolean {
+export function fixedWouldExceedDisplay(value: NumberValue, digits: number): boolean {
   return value.e >= 0 && value.e + 1 + digits > DISPLAY_SIGNIFICANT_DIGITS;
 }
 
@@ -91,14 +87,12 @@ function stripTrailingDecimalZeros(text: string): string {
 
 export function formatStack(
   stack: readonly NumberValue[],
-  display: DisplaySettings = {
-    mode: DisplayMode.All,
-    digits: MAX_DISPLAY_DECIMAL_PLACES,
-    fraction: { enabled: false, maxDenominator: DEFAULT_FRACTION_DENOMINATOR },
-  },
+  display: DisplaySettings | ReadonlyDisplaySettings = createDefaultDisplaySettings(),
   options: { baseMode?: BaseMode; full?: boolean } = {},
 ): string {
-  if (stack.length !== 4) throw new RpnError("expected a four-level stack: T Z Y X");
+  if (stack.length !== 4) {
+    throw new RpnError("expected a four-level stack: T Z Y X", { code: "invalid_argument" });
+  }
 
   const baseMode = options.baseMode ?? BaseMode.Dec;
   if (options.full !== true) return formatNumber(stack[3] ?? ZERO, display, baseMode);

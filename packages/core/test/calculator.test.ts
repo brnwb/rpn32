@@ -175,30 +175,43 @@ describe("RpnCalculator", () => {
 
   test("view shows a variable without changing the stack", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "42 sto A 123 view A");
-    expect(calc.messages).toEqual(["A: 42"]);
+    const result = processLine(calc, "42 sto A 123 view A");
+    expect(
+      result.events.map((event) =>
+        event.type === "variable" ? `${event.name.toUpperCase()}: ${event.value}` : event.code,
+      ),
+    ).toEqual(["A: 42"]);
     expectStack(calc, [ZERO, ZERO, d(42), d(123)]);
   });
 
   test("vars lists nonzero variables sorted by name with i last", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "3 sto C 1 sto A 2 sto i vars");
-    expect(calc.messages).toEqual(["A: 1", "C: 3", "i: 2"]);
+    const result = processLine(calc, "3 sto C 1 sto A 2 sto i vars");
+    expect(
+      result.events.map((event) =>
+        event.type === "variable" ? [event.name, event.value.toString()] : event.code,
+      ),
+    ).toEqual([
+      ["a", "1"],
+      ["c", "3"],
+      ["i", "2"],
+    ]);
     expectStack(calc, [ZERO, d(3), d(1), d(2)]);
   });
 
   test("vars reports no variables when none are nonzero", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "vars");
-    expect(calc.messages).toEqual(["no variables"]);
+    const result = processLine(calc, "vars");
+    expect(result.events).toEqual([{ type: "notice", code: "no_variables" }]);
     expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
   });
 
-  test("takeMessages returns and clears display messages", () => {
+  test("execution events belong to a single processed line", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "42 sto A view A");
-    expect(calc.takeMessages()).toEqual(["A: 42"]);
-    expect(calc.takeMessages()).toEqual([]);
+    const first = processLine(calc, "42 sto A view A");
+    const second = processLine(calc, "");
+    expect(first.events).toHaveLength(1);
+    expect(second.events).toEqual([]);
     expectStack(calc, [ZERO, ZERO, ZERO, d(42)]);
   });
 

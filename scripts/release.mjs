@@ -31,12 +31,7 @@ const YES = options.has("--yes");
 const BUMP_TYPES = new Set(["major", "minor", "patch"]);
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const PACKAGE_JSONS = ["package.json", "packages/core/package.json", "packages/cli/package.json"];
-const RELEASE_EDITED_FILES = [
-  ...PACKAGE_JSONS,
-  "CHANGELOG.md",
-  "packages/cli/test/cli.test.ts",
-  "pnpm-lock.yaml",
-];
+const RELEASE_EDITED_FILES = [...PACKAGE_JSONS, "CHANGELOG.md", "pnpm-lock.yaml"];
 
 for (const option of options) {
   if (option !== "--dry-run" && option !== "--yes") {
@@ -190,20 +185,6 @@ function addUnreleasedSection() {
   writeFileSync("CHANGELOG.md", updated);
 }
 
-function updateCliVersionTest(fromVersion, toVersion) {
-  const path = "packages/cli/test/cli.test.ts";
-  const content = readFileSync(path, "utf-8");
-  const previous = `expect(stdout).toBe("${fromVersion}\\n");`;
-  const next = `expect(stdout).toBe("${toVersion}\\n");`;
-
-  if (!content.includes(previous)) {
-    console.error(`Error: could not find CLI version test expectation for ${fromVersion}.`);
-    process.exit(1);
-  }
-
-  writeFileSync(path, content.replace(previous, next));
-}
-
 // Main flow
 console.log("\n=== Release Script ===\n");
 console.log(DRY_RUN ? "Mode: dry run\n" : "Mode: publish\n");
@@ -239,7 +220,6 @@ run("pnpm whoami");
 console.log();
 
 // 2. Bump or set version
-const currentVersion = getVersion();
 const version = bumpOrSetVersion(RELEASE_TARGET);
 const tag = `v${version}`;
 if (run(`git tag --list ${shellQuote(tag)}`, { silent: true }).trim()) {
@@ -248,13 +228,9 @@ if (run(`git tag --list ${shellQuote(tag)}`, { silent: true }).trim()) {
 }
 console.log(`  New version: ${version}\n`);
 
-// 3. Update changelog and version test
+// 3. Update changelog
 console.log("Updating CHANGELOG.md...");
 updateChangelogForRelease(version);
-console.log();
-
-console.log("Updating CLI version test...");
-updateCliVersionTest(currentVersion, version);
 console.log();
 
 console.log("Validating release...");

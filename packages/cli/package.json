@@ -13,7 +13,7 @@
     "directory": "packages/cli"
   },
   "bin": {
-    "rpn32": "dist/cli.js"
+    "rpn32": "dist/bin.js"
   },
   "files": [
     "dist",
@@ -21,12 +21,18 @@
     "LICENSE"
   ],
   "type": "module",
-  "main": "./dist/cli.js",
-  "types": "./dist/cli.d.ts",
+  "main": "./dist/app.js",
+  "types": "./dist/app.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/app.d.ts",
+      "import": "./dist/app.js"
+    }
+  },
   "scripts": {
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "build": "pnpm run clean && tsc -p tsconfig.json && chmod +x dist/cli.js",
-    "dev": "tsx src/cli.ts",
+    "build": "pnpm run clean && tsc -p tsconfig.json && chmod +x dist/bin.js",
+    "dev": "tsx src/bin.ts",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {

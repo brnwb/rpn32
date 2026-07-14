@@ -12,9 +12,12 @@ export const MAX_FRACTION_DENOMINATOR = 4095;
 Decimal.set({ precision: INTERNAL_PRECISION, rounding: Decimal.ROUND_HALF_UP });
 
 export type NumberValue = Decimal;
-export type RpnStack = [NumberValue, NumberValue, NumberValue, NumberValue];
+export type NumberInput = string | number | bigint;
+export type RpnStack = readonly [NumberValue, NumberValue, NumberValue, NumberValue];
 export type UnaryOp = (x: NumberValue) => NumberValue;
 export type BinaryOp = (a: NumberValue, b: NumberValue) => NumberValue;
+
+type MutableRpnStack = [NumberValue, NumberValue, NumberValue, NumberValue];
 
 export const PI = new Decimal("3.14159265358979");
 export const E = new Decimal("2.71828182845905");
@@ -57,18 +60,61 @@ export interface DisplaySettings {
   };
 }
 
+export interface ReadonlyDisplaySettings {
+  readonly mode: DisplayMode;
+  readonly digits: number;
+  readonly fraction: {
+    readonly enabled: boolean;
+    readonly maxDenominator: number;
+  };
+}
+
+export type RpnErrorCode =
+  | "unknown_token"
+  | "missing_argument"
+  | "invalid_argument"
+  | "invalid_variable"
+  | "divide_by_zero"
+  | "domain"
+  | "range"
+  | "overflow"
+  | "invalid_operation";
+
+export interface RpnErrorOptions extends ErrorOptions {
+  code?: RpnErrorCode;
+  operation?: string;
+  token?: string;
+}
+
 export class RpnError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly code: RpnErrorCode;
+  readonly operation?: string;
+  readonly token?: string;
+
+  constructor(message: string, options: RpnErrorOptions = {}) {
+    super(message, options);
     this.name = "RpnError";
+    this.code = options.code ?? "invalid_operation";
+    this.operation = options.operation;
+    this.token = options.token;
   }
 }
 
-export class StackUnderflowError extends RpnError {
-  constructor(message: string) {
-    super(message);
-    this.name = "StackUnderflowError";
+export function numberValue(input: NumberInput): NumberValue {
+  let value: Decimal;
+  try {
+    value = new Decimal(input);
+  } catch (error) {
+    throw new RpnError(`invalid number: ${JSON.stringify(String(input))}`, {
+      cause: error,
+      code: "invalid_argument",
+    });
   }
+
+  if (!value.isFinite()) {
+    throw new RpnError("number must be finite", { code: "invalid_argument" });
+  }
+  return value;
 }
 
 const DECIMAL_NUMBER_TOKEN = /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?$/i;
@@ -102,7 +148,7 @@ export function parseFraction(token: string): NumberValue | undefined {
   const numerator = new Decimal(mixedNumeratorPart || numeratorPart);
   const denominator = new Decimal(mixedDenominatorPart || denominatorPart);
   if (denominator.isZero()) {
-    throw new RpnError("fraction denominator must not be zero");
+    throw new RpnError("fraction denominator must not be zero", { code: "invalid_argument" });
   }
 
   const mixedInteger = mixedIntegerPart === "" ? ZERO : new Decimal(mixedIntegerPart);
@@ -119,22 +165,23 @@ export function parseBaseInteger(token: string, baseMode: BaseMode): NumberValue
   const digits =
     normalized.startsWith("-") || normalized.startsWith("+") ? normalized.slice(1) : normalized;
   if (digits === "" || !spec.digits.test(digits)) return undefined;
-  if (digits.length > spec.maxDigits) {
-    throw new RpnError("base input exceeds 36-bit word size");
+  const significantDigits = digits.replace(/^0+(?=.)/, "");
+  if (significantDigits.length > spec.maxDigits) {
+    throw new RpnError("base input exceeds 36-bit word size", { code: "range" });
   }
 
   let result = 0n;
   const radix = BigInt(spec.radix);
-  for (const digit of digits.toLowerCase()) {
+  for (const digit of significantDigits.toLowerCase()) {
     result = result * radix + BigInt(spec.valueOf(digit));
   }
   if (!isNegative && result >= BASE_UNSIGNED_LIMIT) {
-    throw new RpnError("base input exceeds 36-bit word size");
+    throw new RpnError("base input exceeds 36-bit word size", { code: "range" });
   }
 
   const signedResult = isNegative ? -result : fromBaseWord(result);
   if (signedResult < BASE_MIN_BIGINT || signedResult > BASE_MAX_BIGINT) {
-    throw new RpnError("base input exceeds 36-bit word size");
+    throw new RpnError("base input exceeds 36-bit word size", { code: "range" });
   }
 
   return new Decimal(signedResult.toString());
@@ -198,12 +245,33 @@ function gcd(a: bigint, b: bigint): bigint {
   return left === 0n ? 1n : left;
 }
 
-export class RpnCalculator {
-  stack: RpnStack = [ZERO, ZERO, ZERO, ZERO];
-  messages: string[] = [];
-  liftEnabled = true;
-  lastX: NumberValue = ZERO;
-  display: DisplaySettings = {
+export interface CalculatorView {
+  readonly angleMode: AngleMode;
+  readonly baseMode: BaseMode;
+  readonly display: ReadonlyDisplaySettings;
+  readonly lastX: NumberValue;
+  readonly liftEnabled: boolean;
+  readonly stack: RpnStack;
+  readonly variables: ReadonlyMap<string, NumberValue>;
+}
+
+export interface VariableValue {
+  readonly name: string;
+  readonly value: NumberValue;
+}
+
+interface CalculatorState {
+  angleMode: AngleMode;
+  baseMode: BaseMode;
+  display: DisplaySettings;
+  lastX: NumberValue;
+  liftEnabled: boolean;
+  stack: MutableRpnStack;
+  variables: Map<string, NumberValue>;
+}
+
+export function createDefaultDisplaySettings(): DisplaySettings {
+  return {
     mode: DisplayMode.All,
     digits: MAX_DISPLAY_DECIMAL_PLACES,
     fraction: {
@@ -211,65 +279,136 @@ export class RpnCalculator {
       maxDenominator: DEFAULT_FRACTION_DENOMINATOR,
     },
   };
-  angleMode: AngleMode = AngleMode.Deg;
-  baseMode: BaseMode = BaseMode.Dec;
-  variables = new Map<string, NumberValue>();
+}
+
+export function cloneDisplaySettings(display: DisplaySettings): DisplaySettings {
+  return {
+    mode: display.mode,
+    digits: display.digits,
+    fraction: { ...display.fraction },
+  };
+}
+
+export class RpnCalculator {
+  private state: CalculatorState = {
+    angleMode: AngleMode.Deg,
+    baseMode: BaseMode.Dec,
+    display: createDefaultDisplaySettings(),
+    lastX: ZERO,
+    liftEnabled: true,
+    stack: [ZERO, ZERO, ZERO, ZERO],
+    variables: new Map<string, NumberValue>(),
+  };
+
+  get stack(): RpnStack {
+    return [...this.state.stack];
+  }
+
+  get liftEnabled(): boolean {
+    return this.state.liftEnabled;
+  }
+
+  get lastX(): NumberValue {
+    return this.state.lastX;
+  }
+
+  get display(): DisplaySettings {
+    return cloneDisplaySettings(this.state.display);
+  }
+
+  get angleMode(): AngleMode {
+    return this.state.angleMode;
+  }
+
+  get baseMode(): BaseMode {
+    return this.state.baseMode;
+  }
+
+  get variables(): ReadonlyMap<string, NumberValue> {
+    return new Map(this.state.variables);
+  }
+
+  view(): CalculatorView {
+    return {
+      angleMode: this.state.angleMode,
+      baseMode: this.state.baseMode,
+      display: cloneDisplaySettings(this.state.display),
+      lastX: this.state.lastX,
+      liftEnabled: this.state.liftEnabled,
+      stack: [...this.state.stack],
+      variables: new Map(this.state.variables),
+    };
+  }
+
+  transaction<T>(operation: () => T): T {
+    const previousState = cloneCalculatorState(this.state);
+    try {
+      return operation();
+    } catch (error) {
+      this.state = previousState;
+      throw error;
+    }
+  }
 
   get x(): NumberValue {
-    return this.stack[3];
+    return this.state.stack[3];
   }
 
   get y(): NumberValue {
-    return this.stack[2];
+    return this.state.stack[2];
   }
 
   get z(): NumberValue {
-    return this.stack[1];
+    return this.state.stack[1];
   }
 
   get t(): NumberValue {
-    return this.stack[0];
+    return this.state.stack[0];
   }
 
   pushNumber(value: NumberValue): void {
-    if (this.liftEnabled) this.lift();
-    this.stack[3] = value;
-    this.liftEnabled = true;
+    assertNumberValue(value, "pushNumber");
+    if (!value.isFinite()) {
+      throw new RpnError("number must be finite", { code: "invalid_argument" });
+    }
+    if (this.state.liftEnabled) this.lift();
+    this.state.stack[3] = value;
+    this.state.liftEnabled = true;
   }
 
   enter(): void {
     this.lift();
-    this.liftEnabled = false;
+    this.state.liftEnabled = false;
   }
 
   drop(): void {
-    this.stack[3] = this.stack[2];
-    this.stack[2] = this.stack[1];
-    this.stack[1] = this.stack[0];
-    this.stack[0] = ZERO;
-    this.liftEnabled = true;
+    this.state.stack[3] = this.state.stack[2];
+    this.state.stack[2] = this.state.stack[1];
+    this.state.stack[1] = this.state.stack[0];
+    this.state.stack[0] = ZERO;
+    this.state.liftEnabled = true;
   }
 
   clearX(): void {
-    this.stack[3] = ZERO;
-    this.liftEnabled = false;
+    this.state.stack[3] = ZERO;
+    this.state.liftEnabled = false;
   }
 
   swap(): void {
-    const x = this.stack[3];
-    this.stack[3] = this.stack[2];
-    this.stack[2] = x;
-    this.liftEnabled = true;
+    const x = this.state.stack[3];
+    this.state.stack[3] = this.state.stack[2];
+    this.state.stack[2] = x;
+    this.state.liftEnabled = true;
   }
 
   clear(): void {
-    this.stack = [ZERO, ZERO, ZERO, ZERO];
-    this.liftEnabled = true;
-    this.lastX = ZERO;
+    this.state.stack = [ZERO, ZERO, ZERO, ZERO];
+    this.state.liftEnabled = true;
+    this.state.lastX = ZERO;
   }
 
   clearVariables(): void {
-    this.variables.clear();
+    this.state.variables.clear();
   }
 
   clearAll(): void {
@@ -278,59 +417,68 @@ export class RpnCalculator {
   }
 
   recallLastX(): void {
-    this.pushNumber(this.lastX);
+    this.pushNumber(this.state.lastX);
   }
 
   storeVariable(name: string): void {
-    this.variables.set(normalizeVariableName(name), this.x);
+    this.state.variables.set(normalizeVariableName(name), this.x);
   }
 
   recallVariable(name: string): void {
-    this.pushNumber(this.variables.get(normalizeVariableName(name)) ?? ZERO);
+    this.pushNumber(this.state.variables.get(normalizeVariableName(name)) ?? ZERO);
   }
 
-  viewVariable(name: string): void {
+  viewVariable(name: string): VariableValue {
     const normalized = normalizeVariableName(name);
-    const value = this.variables.get(normalized) ?? ZERO;
-    this.messages.push(`${formatVariableName(normalized)}: ${value.toString()}`);
+    return { name: normalized, value: this.state.variables.get(normalized) ?? ZERO };
   }
 
-  listVariables(): void {
-    const names = [...this.variables.keys()].filter((name) => !this.variables.get(name)?.isZero());
-    if (names.length === 0) {
-      this.messages.push("no variables");
-      return;
-    }
-
-    for (const name of sortVariableNames(names)) {
-      this.messages.push(
-        `${formatVariableName(name)}: ${this.variables.get(name)?.toString() ?? "0"}`,
-      );
-    }
-  }
-
-  takeMessages(): string[] {
-    const messages = this.messages;
-    this.messages = [];
-    return messages;
+  listVariables(): VariableValue[] {
+    const names = [...this.state.variables.keys()].filter(
+      (name) => !this.state.variables.get(name)?.isZero(),
+    );
+    return sortVariableNames(names).map((name) => ({
+      name,
+      value: this.state.variables.get(name) ?? ZERO,
+    }));
   }
 
   setDisplayMode(mode: DisplayMode, digits: number): void {
-    this.display.mode = mode;
-    this.display.digits = digits;
-    this.display.fraction.enabled = false;
+    if (!Object.values(DisplayMode).includes(mode)) {
+      throw new RpnError(`invalid display mode: ${JSON.stringify(mode)}`, {
+        code: "invalid_argument",
+      });
+    }
+    if (!Number.isInteger(digits) || digits < 0 || digits > MAX_DISPLAY_DECIMAL_PLACES) {
+      throw new RpnError(`display digit count must be from 0 to ${MAX_DISPLAY_DECIMAL_PLACES}`, {
+        code: "range",
+      });
+    }
+    this.state.display.mode = mode;
+    this.state.display.digits = digits;
+    this.state.display.fraction.enabled = false;
   }
 
   setAngleMode(mode: AngleMode): void {
-    this.angleMode = mode;
+    if (!Object.values(AngleMode).includes(mode)) {
+      throw new RpnError(`invalid angle mode: ${JSON.stringify(mode)}`, {
+        code: "invalid_argument",
+      });
+    }
+    this.state.angleMode = mode;
   }
 
   setBaseMode(mode: BaseMode): void {
-    this.baseMode = mode;
+    if (!Object.values(BaseMode).includes(mode)) {
+      throw new RpnError(`invalid base mode: ${JSON.stringify(mode)}`, {
+        code: "invalid_argument",
+      });
+    }
+    this.state.baseMode = mode;
   }
 
   toggleFractionDisplay(): void {
-    this.display.fraction.enabled = !this.display.fraction.enabled;
+    this.state.display.fraction.enabled = !this.state.display.fraction.enabled;
   }
 
   setFractionDisplay(maxDenominator: number): void {
@@ -341,102 +489,101 @@ export class RpnCalculator {
     ) {
       throw new RpnError(
         `fraction denominator must be an integer from 0 to ${MAX_FRACTION_DENOMINATOR}`,
+        { code: "range" },
       );
     }
 
-    this.display.fraction.maxDenominator =
+    this.state.display.fraction.maxDenominator =
       maxDenominator === 0 ? DEFAULT_FRACTION_DENOMINATOR : maxDenominator;
-    this.display.fraction.enabled = true;
+    this.state.display.fraction.enabled = true;
   }
 
-  applyUnary(op: UnaryOp): void {
-    const previousStack: RpnStack = [...this.stack];
-    const previousLastX = this.lastX;
-    const previousLiftEnabled = this.liftEnabled;
+  applyUnary(op: UnaryOp, options: { preserveLastX?: boolean } = {}): void {
+    this.transaction(() => {
+      const previousX = this.x;
+      let result: NumberValue;
+      try {
+        result = op(previousX);
+      } catch (error) {
+        throw normalizeMathError(error);
+      }
+      assertNumberValue(result, "unary operation");
+      if (!result.isFinite()) {
+        throw new RpnError(nonFiniteResultMessage(result), {
+          code: result.isNaN() ? "invalid_operation" : "overflow",
+        });
+      }
 
-    this.lastX = this.x;
-    let result: NumberValue;
-    try {
-      result = op(this.x);
-    } catch (error) {
-      this.restore(previousStack, previousLastX, previousLiftEnabled);
-      throw normalizeMathError(error);
-    }
-    if (!result.isFinite()) {
-      this.restore(previousStack, previousLastX, previousLiftEnabled);
-      throw new RpnError(nonFiniteResultMessage(result));
-    }
-
-    this.stack[3] = result;
-    this.liftEnabled = true;
+      if (options.preserveLastX !== true) this.state.lastX = previousX;
+      this.state.stack[3] = result;
+      this.state.liftEnabled = true;
+    });
   }
 
   applyBinary(op: BinaryOp): void {
-    const previousStack: RpnStack = [...this.stack];
-    const previousLastX = this.lastX;
-    const previousLiftEnabled = this.liftEnabled;
+    this.transaction(() => {
+      const previousX = this.x;
+      let result: NumberValue;
+      try {
+        result = op(this.y, previousX);
+      } catch (error) {
+        throw normalizeMathError(error);
+      }
+      assertNumberValue(result, "binary operation");
+      if (!result.isFinite()) {
+        throw new RpnError(nonFiniteResultMessage(result), {
+          code: result.isNaN() ? "invalid_operation" : "overflow",
+        });
+      }
 
-    this.lastX = this.x;
-    let result: NumberValue;
-    try {
-      result = op(this.y, this.x);
-    } catch (error) {
-      this.restore(previousStack, previousLastX, previousLiftEnabled);
-      throw normalizeMathError(error);
-    }
-    if (!result.isFinite()) {
-      this.restore(previousStack, previousLastX, previousLiftEnabled);
-      throw new RpnError(nonFiniteResultMessage(result));
-    }
-
-    this.stack[3] = result;
-    this.stack[2] = this.stack[1];
-    this.stack[1] = this.stack[0];
-    // T repeats when the HP stack drops after a two-argument operation.
-    this.liftEnabled = true;
+      this.state.lastX = previousX;
+      this.state.stack[3] = result;
+      this.state.stack[2] = this.state.stack[1];
+      this.state.stack[1] = this.state.stack[0];
+      // T repeats when the HP stack drops after a two-argument operation.
+      this.state.liftEnabled = true;
+    });
   }
 
   toRadians(value: NumberValue): NumberValue {
-    if (this.angleMode === AngleMode.Rad) return value;
-    if (this.angleMode === AngleMode.Grad) return value.times(PI).div(200);
+    if (this.state.angleMode === AngleMode.Rad) return value;
+    if (this.state.angleMode === AngleMode.Grad) return value.times(PI).div(200);
     return value.times(PI).div(180);
   }
 
   fromRadians(value: NumberValue): NumberValue {
-    if (this.angleMode === AngleMode.Rad) return value;
-    if (this.angleMode === AngleMode.Grad) return value.times(200).div(PI);
+    if (this.state.angleMode === AngleMode.Rad) return value;
+    if (this.state.angleMode === AngleMode.Grad) return value.times(200).div(PI);
     return value.times(180).div(PI);
   }
 
-  requireStackDepth(count: number): void {
-    if (count > 4) {
-      throw new StackUnderflowError("the HP-style stack only has four levels");
-    }
-  }
-
   private lift(): void {
-    this.stack[0] = this.stack[1];
-    this.stack[1] = this.stack[2];
-    this.stack[2] = this.stack[3];
+    this.state.stack[0] = this.state.stack[1];
+    this.state.stack[1] = this.state.stack[2];
+    this.state.stack[2] = this.state.stack[3];
   }
+}
 
-  private restore(stack: RpnStack, lastX: NumberValue, liftEnabled: boolean): void {
-    this.stack = stack;
-    this.lastX = lastX;
-    this.liftEnabled = liftEnabled;
-  }
+function cloneCalculatorState(state: CalculatorState): CalculatorState {
+  return {
+    angleMode: state.angleMode,
+    baseMode: state.baseMode,
+    display: cloneDisplaySettings(state.display),
+    lastX: state.lastX,
+    liftEnabled: state.liftEnabled,
+    stack: [...state.stack],
+    variables: new Map(state.variables),
+  };
 }
 
 export function normalizeVariableName(name: string): string {
   const normalized = name.trim().toLowerCase();
   if (!/^(?:[a-z]|i)$/.test(normalized)) {
-    throw new RpnError(`variable name must be A through Z or i: ${JSON.stringify(name)}`);
+    throw new RpnError(`variable name must be A through Z or i: ${JSON.stringify(name)}`, {
+      code: "invalid_variable",
+    });
   }
   return normalized;
-}
-
-function formatVariableName(name: string): string {
-  return name === "i" ? "i" : name.toUpperCase();
 }
 
 function sortVariableNames(names: string[]): string[] {
@@ -452,11 +599,23 @@ function nonFiniteResultMessage(result: NumberValue): string {
   return "invalid operation";
 }
 
+function assertNumberValue(value: unknown, operation: string): asserts value is NumberValue {
+  if (!(value instanceof Decimal)) {
+    throw new RpnError(`${operation} requires a value created by numberValue`, {
+      code: "invalid_argument",
+      operation,
+    });
+  }
+}
+
 function normalizeMathError(error: unknown): unknown {
   if (error instanceof RpnError) return error;
   if (error instanceof Error && error.message.startsWith("[DecimalError] ")) {
     const message = error.message.slice("[DecimalError] ".length);
-    return new RpnError(`invalid operation (${message.toLowerCase()})`);
+    return new RpnError(`invalid operation (${message.toLowerCase()})`, {
+      cause: error,
+      code: "invalid_operation",
+    });
   }
   return error;
 }

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Encapsulated calculator state behind defensive views and calculator-owned transactions.
+- Added `numberValue` as the supported finite numeric-value constructor.
+- Added structured command events and machine-readable `RpnError` codes.
+- Consolidated command parsing and aliases into a declarative registry.
+- Split the CLI executable from its importable, injected application and session layers.
+- Tightened the core public export surface and removed the unused stack-underflow API.
+- Made CLI tests self-contained and portable, added public API type tests, and fixed in-range base input with leading zeroes.
+- Updated the workspace to the native TypeScript 7 compiler and made the CLI's Node type dependency explicit.
+
 ## [0.3.1] - 2026-05-25
 
 - Renamed CLI npm package from `@brnwb/rpn32` to `@brnwb/rpn32-cli`.

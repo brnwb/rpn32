@@ -3,7 +3,6 @@ import {
   AngleMode,
   BaseMode,
   DISPLAY_SIGNIFICANT_DIGITS,
-  type DisplaySettings,
   DisplayMode,
   E,
   MAX_FRACTION_DENOMINATOR,
@@ -19,163 +18,266 @@ import {
   parseDecimal,
   parseFraction,
   type BinaryOp,
+  type NumberValue,
+  type ReadonlyDisplaySettings,
   type UnaryOp,
+  type VariableValue,
 } from "./calculator.js";
+import { fixedWouldExceedDisplay, fixedWouldRoundToZero } from "./display.js";
 
-export function processLine(calc: RpnCalculator, line: string): void {
-  processTokens(calc, line.split(/\s+/).filter(Boolean));
+export type CommandEvent =
+  | {
+      readonly type: "variable";
+      readonly name: string;
+      readonly value: NumberValue;
+      readonly display: ReadonlyDisplaySettings;
+      readonly baseMode: BaseMode;
+    }
+  | { readonly type: "notice"; readonly code: "no_variables" };
+
+export interface ExecutionResult {
+  readonly events: readonly CommandEvent[];
 }
 
-export function processTokens(calc: RpnCalculator, tokens: Iterable<string>): void {
-  const snapshot = takeSnapshot(calc);
-  try {
-    processTokensUnchecked(calc, tokens);
-  } catch (error) {
-    restoreSnapshot(calc, snapshot);
-    throw error;
-  }
+interface CommandContext {
+  readonly calc: RpnCalculator;
+  readonly events: CommandEvent[];
 }
 
-function processTokensUnchecked(calc: RpnCalculator, tokens: Iterable<string>): void {
+interface CommandDescriptor {
+  readonly aliases: readonly string[];
+  execute(context: CommandContext, tokens: readonly string[], index: number): number;
+}
+
+interface CommandRegistry {
+  readonly beforeNumber: ReadonlyMap<string, CommandDescriptor>;
+  readonly afterNumber: ReadonlyMap<string, CommandDescriptor>;
+}
+
+let commandRegistry: CommandRegistry | undefined;
+
+export function processLine(calc: RpnCalculator, line: string): ExecutionResult {
+  return processTokens(calc, line.split(/\s+/).filter(Boolean));
+}
+
+export function processTokens(calc: RpnCalculator, tokens: Iterable<string>): ExecutionResult {
+  return calc.transaction(() => processTokensUnchecked(calc, tokens));
+}
+
+function processTokensUnchecked(calc: RpnCalculator, tokens: Iterable<string>): ExecutionResult {
   const tokenList = Array.from(tokens);
+  const events: CommandEvent[] = [];
+  const context = { calc, events };
+  const registry = getCommandRegistry();
   let index = 0;
   while (index < tokenList.length) {
     const token = tokenList[index]?.trim().toLowerCase() ?? "";
-    if (token === "fix" || token === "sci" || token === "eng") {
-      const digitsToken = tokenList[index + 1];
-      if (digitsToken === undefined) {
-        throw new RpnError(`${token} requires a digit count`);
-      }
-      setDisplayMode(calc, token, digitsToken);
-      index += 2;
-    } else if (token === "frac") {
-      const denominatorToken = tokenList[index + 1];
-      if (denominatorToken !== undefined && isPlainIntegerToken(denominatorToken)) {
-        setFractionDisplay(calc, denominatorToken);
-        index += 2;
-      } else {
-        calc.toggleFractionDisplay();
-        index += 1;
-      }
-    } else if (token === "sto" || token === "rcl" || token === "view") {
-      const variableToken = tokenList[index + 1];
-      if (variableToken === undefined) {
-        throw new RpnError(`${token} requires a variable name`);
-      }
-      processVariableCommand(calc, token, variableToken);
-      index += 2;
-    } else if (token === "clear" && tokenList[index + 1]?.trim().toLowerCase() === "var") {
-      calc.clearVariables();
-      index += 2;
-    } else if (token === "clear" && tokenList[index + 1]?.trim().toLowerCase() === "all") {
-      calc.clearAll();
-      index += 2;
-    } else {
-      processToken(calc, token);
-      index += 1;
+    const beforeNumber = registry.beforeNumber.get(token);
+    if (beforeNumber !== undefined) {
+      index = beforeNumber.execute(context, tokenList, index);
+      continue;
     }
+    if (processNumber(calc, token)) {
+      index += 1;
+      continue;
+    }
+    const afterNumber = registry.afterNumber.get(token);
+    if (afterNumber !== undefined) {
+      index = afterNumber.execute(context, tokenList, index);
+      continue;
+    }
+    throw new RpnError(`unknown token: ${JSON.stringify(token)}`, {
+      code: "unknown_token",
+      token,
+    });
   }
+  return { events };
 }
 
-export function processToken(calc: RpnCalculator, token: string): void {
-  token = token.trim().toLowerCase();
-  if (!token) return;
-
-  if (setBaseMode(calc, token)) return;
-
+function processNumber(calc: RpnCalculator, token: string): boolean {
+  if (token === "") return true;
   const parsedInput =
     calc.baseMode === BaseMode.Dec
       ? parseDecimalInput(token)
       : { isFraction: false, value: parseBaseInteger(token, calc.baseMode) };
-  if (parsedInput.value !== undefined) {
-    calc.pushNumber(parsedInput.value);
-    if (parsedInput.isFraction) {
-      calc.setFractionDisplay(0);
-    }
-    return;
+  if (parsedInput.value === undefined) return false;
+  calc.pushNumber(parsedInput.value);
+  if (parsedInput.isFraction) calc.setFractionDisplay(0);
+  return true;
+}
+
+function getCommandRegistry(): CommandRegistry {
+  commandRegistry ??= createCommandRegistry();
+  return commandRegistry;
+}
+
+function createCommandRegistry(): CommandRegistry {
+  const beforeNumber = new Map<string, CommandDescriptor>();
+  const afterNumber = new Map<string, CommandDescriptor>();
+
+  registerZero(beforeNumber, ["dec"], ({ calc }) => calc.setBaseMode(BaseMode.Dec));
+  registerZero(beforeNumber, ["hex"], ({ calc }) => calc.setBaseMode(BaseMode.Hex));
+  registerZero(beforeNumber, ["oct"], ({ calc }) => calc.setBaseMode(BaseMode.Oct));
+  registerZero(beforeNumber, ["bin"], ({ calc }) => calc.setBaseMode(BaseMode.Bin));
+
+  for (const mode of ["fix", "sci", "eng"] as const) {
+    registerRequired(afterNumber, [mode], "a digit count", ({ calc }, argument) =>
+      setDisplayMode(calc, mode, argument),
+    );
   }
 
-  const binaryOps = binaryOpsFor(calc);
-  const unaryOps: Record<string, UnaryOp> = {
-    sqrt: sqrt,
-    sq: (x) => x.times(x),
-    "!": factorial,
-    fact: factorial,
-    ...trigOps(calc),
-    ln: naturalLog,
-    log: commonLog,
-    exp: (x) => Decimal.exp(x),
-    abs: (x) => x.abs(),
-    int: (x) => x.trunc(),
-    fpart: fractionalPart,
-    floor: (x) => x.floor(),
-    ceil: (x) => x.ceil(),
-    chs: (x) => x.neg(),
-    neg: (x) => x.neg(),
-    "1/x": reciprocal,
-  };
+  registerDescriptor(afterNumber, {
+    aliases: ["frac"],
+    execute({ calc }, tokens, index) {
+      const denominatorToken = tokens[index + 1];
+      if (denominatorToken !== undefined && isPlainIntegerToken(denominatorToken)) {
+        setFractionDisplay(calc, denominatorToken);
+        return index + 2;
+      }
+      calc.toggleFractionDisplay();
+      return index + 1;
+    },
+  });
 
-  if (token in binaryOps) {
-    calc.applyBinary(binaryOps[token]);
-    return;
+  for (const command of ["sto", "rcl", "view"] as const) {
+    registerRequired(afterNumber, [command], "a variable name", (context, variableName) =>
+      processVariableCommand(context.calc, command, variableName, context.events),
+    );
   }
 
-  if (token in unaryOps) {
-    calc.applyUnary(unaryOps[token]);
-    return;
-  }
-
-  switch (token) {
-    case "rnd":
-    case "round": {
-      const lastX = calc.lastX;
-      calc.applyUnary((x) => roundToDisplay(x, calc.display));
-      calc.lastX = lastX;
-      return;
-    }
-    case "enter":
-    case "dup":
-      calc.enter();
-      return;
-    case "drop":
-      calc.drop();
-      return;
-    case "clx":
-      calc.clearX();
-      return;
-    case "swap":
-    case "xy":
-      calc.swap();
-      return;
-    case "clear":
+  registerDescriptor(afterNumber, {
+    aliases: ["clear"],
+    execute({ calc }, tokens, index) {
+      const scope = tokens[index + 1]?.trim().toLowerCase();
+      if (scope === "var") {
+        calc.clearVariables();
+        return index + 2;
+      }
+      if (scope === "all") {
+        calc.clearAll();
+        return index + 2;
+      }
       calc.clear();
-      return;
-    case "lastx":
-      calc.recallLastX();
-      return;
-    case "all":
-      calc.setDisplayMode(DisplayMode.All, calc.display.digits);
-      return;
-    case "vars":
-      calc.listVariables();
-      return;
-    case "deg":
-      calc.setAngleMode(AngleMode.Deg);
-      return;
-    case "rad":
-      calc.setAngleMode(AngleMode.Rad);
-      return;
-    case "grad":
-      calc.setAngleMode(AngleMode.Grad);
-      return;
-    case "pi":
-      calc.pushNumber(PI);
-      return;
-    case "e":
-      calc.pushNumber(E);
-      return;
-    default:
-      throw new RpnError(`unknown token: ${JSON.stringify(token)}`);
+      return index + 1;
+    },
+  });
+
+  registerZero(afterNumber, ["rnd", "round"], ({ calc }) =>
+    calc.applyUnary((x) => roundToDisplay(x, calc.display), { preserveLastX: true }),
+  );
+  registerZero(afterNumber, ["enter", "dup"], ({ calc }) => calc.enter());
+  registerZero(afterNumber, ["drop"], ({ calc }) => calc.drop());
+  registerZero(afterNumber, ["clx"], ({ calc }) => calc.clearX());
+  registerZero(afterNumber, ["swap", "xy"], ({ calc }) => calc.swap());
+  registerZero(afterNumber, ["lastx"], ({ calc }) => calc.recallLastX());
+  registerZero(afterNumber, ["all"], ({ calc }) =>
+    calc.setDisplayMode(DisplayMode.All, calc.display.digits),
+  );
+  registerZero(afterNumber, ["vars"], ({ calc, events }) => {
+    const variables = calc.listVariables();
+    if (variables.length === 0) events.push({ type: "notice", code: "no_variables" });
+    else {
+      events.push(...variables.map((variable) => variableEvent(calc, variable)));
+    }
+  });
+  registerZero(afterNumber, ["deg"], ({ calc }) => calc.setAngleMode(AngleMode.Deg));
+  registerZero(afterNumber, ["rad"], ({ calc }) => calc.setAngleMode(AngleMode.Rad));
+  registerZero(afterNumber, ["grad"], ({ calc }) => calc.setAngleMode(AngleMode.Grad));
+  registerZero(afterNumber, ["pi"], ({ calc }) => calc.pushNumber(PI));
+  registerZero(afterNumber, ["e"], ({ calc }) => calc.pushNumber(E));
+
+  for (const aliases of [["+"], ["-"], ["*"], ["/"], ["^", "pow"], ["mod"]]) {
+    registerZero(afterNumber, aliases, ({ calc }) => {
+      const token = aliases[0] ?? "";
+      const operation = binaryOpsFor(calc)[token];
+      if (operation === undefined) throw new Error(`missing binary operation: ${token}`);
+      calc.applyBinary(operation);
+    });
+  }
+
+  const unaryOperations: Array<readonly [readonly string[], UnaryOp]> = [
+    [["sqrt"], sqrt],
+    [["sq"], (x) => x.times(x)],
+    [["!", "fact"], factorial],
+    [["ln"], naturalLog],
+    [["log"], commonLog],
+    [["exp"], (x) => Decimal.exp(x)],
+    [["abs"], (x) => x.abs()],
+    [["int"], (x) => x.trunc()],
+    [["fpart"], fractionalPart],
+    [["floor"], (x) => x.floor()],
+    [["ceil"], (x) => x.ceil()],
+    [["chs", "neg"], (x) => x.neg()],
+    [["1/x"], reciprocal],
+  ];
+  for (const [aliases, operation] of unaryOperations) {
+    registerZero(afterNumber, aliases, ({ calc }) => calc.applyUnary(operation));
+  }
+
+  for (const token of [
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "sinh",
+    "cosh",
+    "tanh",
+    "asinh",
+    "acosh",
+    "atanh",
+  ] as const) {
+    registerZero(afterNumber, [token], ({ calc }) => calc.applyUnary(trigOps(calc)[token]));
+  }
+
+  return { beforeNumber, afterNumber };
+}
+
+function registerZero(
+  registry: Map<string, CommandDescriptor>,
+  aliases: readonly string[],
+  handler: (context: CommandContext) => void,
+): void {
+  registerDescriptor(registry, {
+    aliases,
+    execute(context, _tokens, index) {
+      handler(context);
+      return index + 1;
+    },
+  });
+}
+
+function registerRequired(
+  registry: Map<string, CommandDescriptor>,
+  aliases: readonly string[],
+  argumentDescription: string,
+  handler: (context: CommandContext, argument: string) => void,
+): void {
+  registerDescriptor(registry, {
+    aliases,
+    execute(context, tokens, index) {
+      const argument = tokens[index + 1];
+      const operation = tokens[index]?.trim().toLowerCase() ?? aliases[0] ?? "command";
+      if (argument === undefined) {
+        throw new RpnError(`${operation} requires ${argumentDescription}`, {
+          code: "missing_argument",
+          operation,
+        });
+      }
+      handler(context, argument);
+      return index + 2;
+    },
+  });
+}
+
+function registerDescriptor(
+  registry: Map<string, CommandDescriptor>,
+  descriptor: CommandDescriptor,
+): void {
+  for (const alias of descriptor.aliases) {
+    if (registry.has(alias)) throw new Error(`duplicate command alias: ${alias}`);
+    registry.set(alias, descriptor);
   }
 }
 
@@ -216,7 +318,9 @@ function baseBinaryOp(op: (a: bigint, b: bigint) => bigint): BinaryOp {
 
 function baseDivide(a: Decimal, b: Decimal): Decimal {
   const divisor = requireBaseInteger(b);
-  if (divisor === 0n) throw new RpnError("invalid operation (divide by zero)");
+  if (divisor === 0n) {
+    throw new RpnError("invalid operation (divide by zero)", { code: "divide_by_zero" });
+  }
 
   const result = requireBaseInteger(a) / divisor;
   return new Decimal(clampBaseInteger(result).toString());
@@ -224,7 +328,9 @@ function baseDivide(a: Decimal, b: Decimal): Decimal {
 
 function baseModulo(a: Decimal, b: Decimal): Decimal {
   const divisor = requireBaseInteger(b);
-  if (divisor === 0n) throw new RpnError("invalid operation (divide by zero)");
+  if (divisor === 0n) {
+    throw new RpnError("invalid operation (divide by zero)", { code: "divide_by_zero" });
+  }
 
   const result = requireBaseInteger(a) % divisor;
   return new Decimal(clampBaseInteger(result).toString());
@@ -233,87 +339,36 @@ function baseModulo(a: Decimal, b: Decimal): Decimal {
 function requireBaseInteger(value: Decimal): bigint {
   const integer = baseIntegerFromDecimal(value);
   if (integer === undefined) {
-    throw new RpnError("base operation exceeds 36-bit word size");
+    throw new RpnError("base operation exceeds 36-bit word size", { code: "range" });
   }
   return integer;
-}
-
-function takeSnapshot(calc: RpnCalculator): RpnCalculatorSnapshot {
-  return {
-    angleMode: calc.angleMode,
-    baseMode: calc.baseMode,
-    display: cloneDisplay(calc.display),
-    lastX: calc.lastX,
-    liftEnabled: calc.liftEnabled,
-    messages: [...calc.messages],
-    stack: [...calc.stack],
-    variables: new Map(calc.variables),
-  };
-}
-
-function restoreSnapshot(calc: RpnCalculator, snapshot: RpnCalculatorSnapshot): void {
-  calc.angleMode = snapshot.angleMode;
-  calc.baseMode = snapshot.baseMode;
-  calc.display = cloneDisplay(snapshot.display);
-  calc.lastX = snapshot.lastX;
-  calc.liftEnabled = snapshot.liftEnabled;
-  calc.messages = [...snapshot.messages];
-  calc.stack = [...snapshot.stack];
-  calc.variables = new Map(snapshot.variables);
-}
-
-interface RpnCalculatorSnapshot {
-  angleMode: AngleMode;
-  baseMode: BaseMode;
-  display: RpnCalculator["display"];
-  lastX: RpnCalculator["lastX"];
-  liftEnabled: boolean;
-  messages: RpnCalculator["messages"];
-  stack: RpnCalculator["stack"];
-  variables: RpnCalculator["variables"];
-}
-
-function setBaseMode(calc: RpnCalculator, token: string): boolean {
-  switch (token) {
-    case "dec":
-      calc.setBaseMode(BaseMode.Dec);
-      return true;
-    case "hex":
-      calc.setBaseMode(BaseMode.Hex);
-      return true;
-    case "oct":
-      calc.setBaseMode(BaseMode.Oct);
-      return true;
-    case "bin":
-      calc.setBaseMode(BaseMode.Bin);
-      return true;
-    default:
-      return false;
-  }
-}
-
-function cloneDisplay(display: DisplaySettings): DisplaySettings {
-  return {
-    mode: display.mode,
-    digits: display.digits,
-    fraction: { ...display.fraction },
-  };
 }
 
 function processVariableCommand(
   calc: RpnCalculator,
   command: "sto" | "rcl" | "view",
   variableName: string,
+  events: CommandEvent[],
 ): void {
   if (command === "sto") calc.storeVariable(variableName);
   else if (command === "rcl") calc.recallVariable(variableName);
-  else calc.viewVariable(variableName);
+  else events.push(variableEvent(calc, calc.viewVariable(variableName)));
+}
+
+function variableEvent(calc: RpnCalculator, variable: VariableValue): CommandEvent {
+  const view = calc.view();
+  return {
+    type: "variable",
+    ...variable,
+    display: view.display,
+    baseMode: view.baseMode,
+  };
 }
 
 function decimalPower(a: Decimal, b: Decimal): Decimal {
   if (b.isInteger()) {
     if (b.abs().gt(Number.MAX_SAFE_INTEGER)) {
-      throw new RpnError("invalid operation (exponent out of range)");
+      throw new RpnError("invalid operation (exponent out of range)", { code: "range" });
     }
     return a.pow(b.toNumber());
   }
@@ -322,7 +377,7 @@ function decimalPower(a: Decimal, b: Decimal): Decimal {
 
 function factorial(value: Decimal): Decimal {
   if (!value.isInteger() || value.isNegative() || value.gt(253)) {
-    throw new RpnError("factorial requires an integer from 0 to 253");
+    throw new RpnError("factorial requires an integer from 0 to 253", { code: "domain" });
   }
 
   let result = new Decimal(1);
@@ -364,14 +419,6 @@ function roundToFractionDisplay(value: Decimal, maxDenominator: number): Decimal
   );
 
   return sign < 0 ? roundedMagnitude.neg() : roundedMagnitude;
-}
-
-function fixedWouldRoundToZero(value: Decimal, digits: number): boolean {
-  return !value.isZero() && value.e < -digits;
-}
-
-function fixedWouldExceedDisplay(value: Decimal, digits: number): boolean {
-  return value.e >= 0 && value.e + 1 + digits > DISPLAY_SIGNIFICANT_DIGITS;
 }
 
 function trigOps(
@@ -434,7 +481,7 @@ function exactQuadrantTrig(
   }
 
   if (quadrant === 1 || quadrant === 3) {
-    throw new RpnError("invalid operation (tangent undefined)");
+    throw new RpnError("invalid operation (tangent undefined)", { code: "domain" });
   }
   return new Decimal(0);
 }
@@ -446,30 +493,38 @@ function positiveModulo(value: Decimal, divisor: number): number {
 
 function inverseCircularTrig(x: Decimal, op: (value: Decimal.Value) => Decimal): Decimal {
   if (x.lt(-1) || x.gt(1)) {
-    throw new RpnError("invalid operation (inverse trigonometry domain error)");
+    throw new RpnError("invalid operation (inverse trigonometry domain error)", {
+      code: "domain",
+    });
   }
   return op(x);
 }
 
 function acosh(x: Decimal): Decimal {
-  if (x.lt(1)) throw new RpnError("invalid operation (hyperbolic domain error)");
+  if (x.lt(1)) {
+    throw new RpnError("invalid operation (hyperbolic domain error)", { code: "domain" });
+  }
   return Decimal.acosh(x);
 }
 
 function atanh(x: Decimal): Decimal {
   if (x.lte(-1) || x.gte(1)) {
-    throw new RpnError("invalid operation (hyperbolic domain error)");
+    throw new RpnError("invalid operation (hyperbolic domain error)", { code: "domain" });
   }
   return Decimal.atanh(x);
 }
 
 function divide(a: Decimal, b: Decimal): Decimal {
-  if (b.isZero()) throw new RpnError("invalid operation (divide by zero)");
+  if (b.isZero()) {
+    throw new RpnError("invalid operation (divide by zero)", { code: "divide_by_zero" });
+  }
   return a.div(b);
 }
 
 function modulo(a: Decimal, b: Decimal): Decimal {
-  if (b.isZero()) throw new RpnError("invalid operation (divide by zero)");
+  if (b.isZero()) {
+    throw new RpnError("invalid operation (divide by zero)", { code: "divide_by_zero" });
+  }
   return a.mod(b);
 }
 
@@ -479,23 +534,29 @@ function fractionalPart(x: Decimal): Decimal {
 
 function sqrt(x: Decimal): Decimal {
   if (x.isNegative()) {
-    throw new RpnError("invalid operation (imaginary numbers not supported)");
+    throw new RpnError("invalid operation (imaginary numbers not supported)", { code: "domain" });
   }
   return x.sqrt();
 }
 
 function naturalLog(x: Decimal): Decimal {
-  if (x.lte(0)) throw new RpnError("invalid operation (logarithm domain error)");
+  if (x.lte(0)) {
+    throw new RpnError("invalid operation (logarithm domain error)", { code: "domain" });
+  }
   return Decimal.ln(x);
 }
 
 function commonLog(x: Decimal): Decimal {
-  if (x.lte(0)) throw new RpnError("invalid operation (logarithm domain error)");
+  if (x.lte(0)) {
+    throw new RpnError("invalid operation (logarithm domain error)", { code: "domain" });
+  }
   return Decimal.log10(x);
 }
 
 function reciprocal(x: Decimal): Decimal {
-  if (x.isZero()) throw new RpnError("invalid operation (divide by zero)");
+  if (x.isZero()) {
+    throw new RpnError("invalid operation (divide by zero)", { code: "divide_by_zero" });
+  }
   return new Decimal(1).div(x);
 }
 
@@ -506,12 +567,16 @@ function setDisplayMode(
 ): void {
   const normalizedDigitsToken = digitsToken.trim();
   if (!/^[+-]?\d+$/.test(normalizedDigitsToken)) {
-    throw new RpnError(`display digit count must be an integer: ${JSON.stringify(digitsToken)}`);
+    throw new RpnError(`display digit count must be an integer: ${JSON.stringify(digitsToken)}`, {
+      code: "invalid_argument",
+    });
   }
 
   const digits = Number(normalizedDigitsToken);
   if (digits < 0 || digits > MAX_DISPLAY_DECIMAL_PLACES) {
-    throw new RpnError(`display digit count must be from 0 to ${MAX_DISPLAY_DECIMAL_PLACES}`);
+    throw new RpnError(`display digit count must be from 0 to ${MAX_DISPLAY_DECIMAL_PLACES}`, {
+      code: "range",
+    });
   }
 
   calc.setDisplayMode(mode as DisplayMode, digits);
@@ -522,6 +587,7 @@ function setFractionDisplay(calc: RpnCalculator, denominatorToken: string): void
   if (!Number.isInteger(denominator)) {
     throw new RpnError(
       `fraction denominator must be an integer from 0 to ${MAX_FRACTION_DENOMINATOR}`,
+      { code: "invalid_argument" },
     );
   }
 

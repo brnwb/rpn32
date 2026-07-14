@@ -12,15 +12,17 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
-    "test": "vitest --run",
-    "check": "pnpm run format:check && pnpm run lint && pnpm run build && pnpm run test"
+    "test:unit": "vitest --run",
+    "test:types": "tsc -p tsconfig.type-tests.json",
+    "test": "pnpm run build && pnpm run test:unit",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run build && pnpm run test:types && pnpm run test:unit"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "oxfmt": "^0.47.0",
     "oxlint": "^1.62.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.14"
   },
   "packageManager": "pnpm@11.2.2"

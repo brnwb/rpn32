@@ -13,19 +13,18 @@ export {
   PI,
   RpnCalculator,
   RpnError,
-  StackUnderflowError,
   ZERO,
-  approximateFraction,
-  baseIntegerFromDecimal,
-  clampBaseInteger,
-  parseBaseInteger,
-  parseDecimal,
-  parseFraction,
-  toBaseWord,
+  numberValue,
   type BinaryOp,
+  type CalculatorView,
   type DisplaySettings,
+  type NumberInput,
   type NumberValue,
+  type RpnErrorCode,
+  type RpnErrorOptions,
+  type ReadonlyDisplaySettings,
   type UnaryOp,
+  type VariableValue,
 } from "./calculator.js";
-export { processLine, processToken, processTokens } from "./commands.js";
+export { processLine, processTokens, type CommandEvent, type ExecutionResult } from "./commands.js";
 export { formatNumber, formatStack } from "./display.js";

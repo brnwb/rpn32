@@ -184,10 +184,14 @@ packages/
       index.ts          public core exports
     test/
       calculator.test.ts
+      public-api.test.ts
 
   cli/                  @brnwb/rpn32-cli
     src/
-      cli.ts            Node readline REPL
+      bin.ts            executable process entry point
+      app.ts            injected CLI application and readline lifecycle
+      session.ts        pure REPL-local command parsing
+      rendering.ts      stack, event, prompt, and error rendering
 ```
 
 The CLI depends on `@brnwb/rpn32-core`; calculator behavior belongs in the core package, while terminal behavior belongs in the CLI package.
@@ -202,5 +206,6 @@ See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 pnpm run format        # format with oxfmt
 pnpm run format:check  # check formatting with oxfmt
 pnpm run lint          # lint with oxlint
+pnpm run test:types    # compile the external-consumer API fixture
 pnpm run check         # format check, lint, build, and test
 ```
