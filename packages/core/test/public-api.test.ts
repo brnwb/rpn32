@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import {
   BaseMode,
   DisplayMode,
+  PI,
   RpnCalculator,
   RpnError,
+  ZERO,
   formatStack,
   numberValue,
   processLine,
@@ -40,11 +42,40 @@ describe("public core API", () => {
 
     (view.stack as Array<ReturnType<typeof numberValue>>)[3] = numberValue(99);
     (view.display as { digits: number }).digits = 10;
+    view.stack[2].d[0] = 99;
+    view.variables.get("a")!.d[0] = 99;
     (view.variables as Map<string, ReturnType<typeof numberValue>>).clear();
 
     expect(calc.x.toString()).toBe("42");
     expect(calc.display.digits).toBe(2);
     expect(calc.variables.get("a")?.toString()).toBe("42");
+  });
+
+  test("takes ownership of values and does not share zero registers", () => {
+    const input = numberValue(123);
+    const first = new RpnCalculator();
+    const second = new RpnCalculator();
+    first.pushNumber(input);
+
+    input.d[0] = 999;
+    first.view().stack[0].d[0] = 7;
+
+    expect(first.x.toString()).toBe("123");
+    expect(first.t.toString()).toBe("0");
+    expect(second.stack.map(String)).toEqual(["0", "0", "0", "0"]);
+  });
+
+  test("protects exported numeric constants from mutation", () => {
+    expect(() => {
+      ZERO.d[0] = 7;
+    }).toThrow(TypeError);
+    expect(() => {
+      PI.d[0] = 7;
+    }).toThrow(TypeError);
+
+    const calc = new RpnCalculator();
+    processLine(calc, "pi");
+    expect(calc.x.toString()).toBe("3.14159265358979");
   });
 
   test("rolls every calculator state field back transactionally", () => {
@@ -64,6 +95,19 @@ describe("public core API", () => {
     );
   });
 
+  test("rejects asynchronous calculator transactions before state can escape", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "5");
+
+    expect(() =>
+      calc.runTransaction(async () => {
+        calc.pushNumber(numberValue(7));
+        throw new Error("boom");
+      }),
+    ).toThrow("calculator transactions must be synchronous");
+    expect(calc.stack.map(String)).toEqual(["0", "0", "0", "5"]);
+  });
+
   test("provides stable error categories and context", () => {
     const calc = new RpnCalculator();
     for (const [source, code] of [
@@ -79,6 +123,17 @@ describe("public core API", () => {
         expect(error).toBeInstanceOf(RpnError);
         expect((error as RpnError).code).toBe(code);
       }
+    }
+
+    try {
+      processLine(calc, "wat");
+    } catch (error) {
+      expect((error as RpnError).token).toBe("wat");
+    }
+    try {
+      processLine(calc, "sto");
+    } catch (error) {
+      expect((error as RpnError).operation).toBe("sto");
     }
   });
 

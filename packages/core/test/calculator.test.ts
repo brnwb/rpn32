@@ -338,6 +338,20 @@ describe("RpnCalculator", () => {
     expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("14");
   });
 
+  test("base mode powers use integer operands and return integer results", () => {
+    const fractional = new RpnCalculator();
+    processLine(fractional, "dec 2.5 2 hex ^");
+    expect(fractional.x.toString()).toBe("4");
+
+    const negativeExponent = new RpnCalculator();
+    processLine(negativeExponent, "dec 2 -1 hex pow");
+    expect(negativeExponent.x.toString()).toBe("0");
+
+    const overflow = new RpnCalculator();
+    processLine(overflow, "hex 2 24 ^");
+    expect(overflow.x.toString()).toBe("34359738367");
+  });
+
   test("base mode arithmetic clamps 36-bit overflow", () => {
     const positive = new RpnCalculator();
     processLine(positive, "hex 7ffffffff 1 +");

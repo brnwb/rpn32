@@ -19,11 +19,11 @@ export type BinaryOp = (a: NumberValue, b: NumberValue) => NumberValue;
 
 type MutableRpnStack = [NumberValue, NumberValue, NumberValue, NumberValue];
 
-export const PI = new Decimal("3.14159265358979");
-export const E = new Decimal("2.71828182845905");
-export const ZERO = new Decimal(0);
-export const BASE_MIN_INTEGER = new Decimal("-34359738368");
-export const BASE_MAX_INTEGER = new Decimal("34359738367");
+export const PI = freezeNumberValue("3.14159265358979");
+export const E = freezeNumberValue("2.71828182845905");
+export const ZERO = freezeNumberValue(0);
+export const BASE_MIN_INTEGER = freezeNumberValue("-34359738368");
+export const BASE_MAX_INTEGER = freezeNumberValue("34359738367");
 
 const BASE_WORD_BITS = 36n;
 const BASE_UNSIGNED_LIMIT = 1n << BASE_WORD_BITS;
@@ -115,6 +115,20 @@ export function numberValue(input: NumberInput): NumberValue {
     throw new RpnError("number must be finite", { code: "invalid_argument" });
   }
   return value;
+}
+
+function cloneNumberValue(value: NumberValue): NumberValue {
+  return new Decimal(value);
+}
+
+function freezeNumberValue(input: NumberInput): NumberValue {
+  const value = new Decimal(input);
+  Object.freeze(value.d);
+  return Object.freeze(value);
+}
+
+function zeroValue(): NumberValue {
+  return new Decimal(0);
 }
 
 const DECIMAL_NUMBER_TOKEN = /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?$/i;
@@ -294,14 +308,14 @@ export class RpnCalculator {
     angleMode: AngleMode.Deg,
     baseMode: BaseMode.Dec,
     display: createDefaultDisplaySettings(),
-    lastX: ZERO,
+    lastX: zeroValue(),
     liftEnabled: true,
-    stack: [ZERO, ZERO, ZERO, ZERO],
+    stack: [zeroValue(), zeroValue(), zeroValue(), zeroValue()],
     variables: new Map<string, NumberValue>(),
   };
 
   get stack(): RpnStack {
-    return [...this.state.stack];
+    return cloneStack(this.state.stack);
   }
 
   get liftEnabled(): boolean {
@@ -309,7 +323,7 @@ export class RpnCalculator {
   }
 
   get lastX(): NumberValue {
-    return this.state.lastX;
+    return cloneNumberValue(this.state.lastX);
   }
 
   get display(): DisplaySettings {
@@ -325,7 +339,7 @@ export class RpnCalculator {
   }
 
   get variables(): ReadonlyMap<string, NumberValue> {
-    return new Map(this.state.variables);
+    return cloneVariables(this.state.variables);
   }
 
   view(): CalculatorView {
@@ -333,17 +347,26 @@ export class RpnCalculator {
       angleMode: this.state.angleMode,
       baseMode: this.state.baseMode,
       display: cloneDisplaySettings(this.state.display),
-      lastX: this.state.lastX,
+      lastX: cloneNumberValue(this.state.lastX),
       liftEnabled: this.state.liftEnabled,
-      stack: [...this.state.stack],
-      variables: new Map(this.state.variables),
+      stack: cloneStack(this.state.stack),
+      variables: cloneVariables(this.state.variables),
     };
   }
 
-  transaction<T>(operation: () => T): T {
+  /** @internal Commands use this to make one input line atomic. */
+  runTransaction<T>(operation: () => T): T {
     const previousState = cloneCalculatorState(this.state);
     try {
-      return operation();
+      const result = operation();
+      if (isPromiseLike(result)) {
+        void Promise.resolve(result).catch(() => {});
+        throw new RpnError("calculator transactions must be synchronous", {
+          code: "invalid_operation",
+          operation: "transaction",
+        });
+      }
+      return result;
     } catch (error) {
       this.state = previousState;
       throw error;
@@ -351,19 +374,19 @@ export class RpnCalculator {
   }
 
   get x(): NumberValue {
-    return this.state.stack[3];
+    return cloneNumberValue(this.state.stack[3]);
   }
 
   get y(): NumberValue {
-    return this.state.stack[2];
+    return cloneNumberValue(this.state.stack[2]);
   }
 
   get z(): NumberValue {
-    return this.state.stack[1];
+    return cloneNumberValue(this.state.stack[1]);
   }
 
   get t(): NumberValue {
-    return this.state.stack[0];
+    return cloneNumberValue(this.state.stack[0]);
   }
 
   pushNumber(value: NumberValue): void {
@@ -372,7 +395,7 @@ export class RpnCalculator {
       throw new RpnError("number must be finite", { code: "invalid_argument" });
     }
     if (this.state.liftEnabled) this.lift();
-    this.state.stack[3] = value;
+    this.state.stack[3] = cloneNumberValue(value);
     this.state.liftEnabled = true;
   }
 
@@ -385,12 +408,12 @@ export class RpnCalculator {
     this.state.stack[3] = this.state.stack[2];
     this.state.stack[2] = this.state.stack[1];
     this.state.stack[1] = this.state.stack[0];
-    this.state.stack[0] = ZERO;
+    this.state.stack[0] = zeroValue();
     this.state.liftEnabled = true;
   }
 
   clearX(): void {
-    this.state.stack[3] = ZERO;
+    this.state.stack[3] = zeroValue();
     this.state.liftEnabled = false;
   }
 
@@ -402,9 +425,9 @@ export class RpnCalculator {
   }
 
   clear(): void {
-    this.state.stack = [ZERO, ZERO, ZERO, ZERO];
+    this.state.stack = [zeroValue(), zeroValue(), zeroValue(), zeroValue()];
     this.state.liftEnabled = true;
-    this.state.lastX = ZERO;
+    this.state.lastX = zeroValue();
   }
 
   clearVariables(): void {
@@ -430,7 +453,10 @@ export class RpnCalculator {
 
   viewVariable(name: string): VariableValue {
     const normalized = normalizeVariableName(name);
-    return { name: normalized, value: this.state.variables.get(normalized) ?? ZERO };
+    return {
+      name: normalized,
+      value: cloneNumberValue(this.state.variables.get(normalized) ?? ZERO),
+    };
   }
 
   listVariables(): VariableValue[] {
@@ -439,7 +465,7 @@ export class RpnCalculator {
     );
     return sortVariableNames(names).map((name) => ({
       name,
-      value: this.state.variables.get(name) ?? ZERO,
+      value: cloneNumberValue(this.state.variables.get(name) ?? ZERO),
     }));
   }
 
@@ -499,7 +525,7 @@ export class RpnCalculator {
   }
 
   applyUnary(op: UnaryOp, options: { preserveLastX?: boolean } = {}): void {
-    this.transaction(() => {
+    this.runTransaction(() => {
       const previousX = this.x;
       let result: NumberValue;
       try {
@@ -515,13 +541,13 @@ export class RpnCalculator {
       }
 
       if (options.preserveLastX !== true) this.state.lastX = previousX;
-      this.state.stack[3] = result;
+      this.state.stack[3] = cloneNumberValue(result);
       this.state.liftEnabled = true;
     });
   }
 
   applyBinary(op: BinaryOp): void {
-    this.transaction(() => {
+    this.runTransaction(() => {
       const previousX = this.x;
       let result: NumberValue;
       try {
@@ -537,7 +563,7 @@ export class RpnCalculator {
       }
 
       this.state.lastX = previousX;
-      this.state.stack[3] = result;
+      this.state.stack[3] = cloneNumberValue(result);
       this.state.stack[2] = this.state.stack[1];
       this.state.stack[1] = this.state.stack[0];
       // T repeats when the HP stack drops after a two-argument operation.
@@ -569,11 +595,28 @@ function cloneCalculatorState(state: CalculatorState): CalculatorState {
     angleMode: state.angleMode,
     baseMode: state.baseMode,
     display: cloneDisplaySettings(state.display),
-    lastX: state.lastX,
+    lastX: cloneNumberValue(state.lastX),
     liftEnabled: state.liftEnabled,
-    stack: [...state.stack],
-    variables: new Map(state.variables),
+    stack: cloneStack(state.stack),
+    variables: cloneVariables(state.variables),
   };
+}
+
+function cloneStack(stack: RpnStack): MutableRpnStack {
+  return stack.map(cloneNumberValue) as MutableRpnStack;
+}
+
+function cloneVariables(variables: ReadonlyMap<string, NumberValue>): Map<string, NumberValue> {
+  return new Map([...variables].map(([name, value]) => [name, cloneNumberValue(value)]));
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
 }
 
 export function normalizeVariableName(name: string): string {

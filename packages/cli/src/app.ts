@@ -1,21 +1,18 @@
+/// <reference types="node" preserve="true" />
+
 import { createInterface } from "node:readline";
+import type { Readable, Writable } from "node:stream";
 import { RpnCalculator, processLine } from "@brnwb/rpn32-core";
 import { HELP } from "./help.js";
 import { formatCalculatorStack, formatError, formatEvent, promptFor } from "./rendering.js";
-import { parseReplInput } from "./session.js";
-
-type ReplInterface = ReturnType<typeof createInterface>;
 
 const HISTORY_SIZE = 1000;
 
-export interface CliInput extends AsyncIterable<string> {
+export interface CliInput extends Readable {
   readonly isTTY?: boolean;
-  setEncoding(encoding: BufferEncoding): void;
 }
 
-export interface CliOutput {
-  write(text: string): unknown;
-}
+export type CliOutput = Writable;
 
 export interface CliEnvironment {
   readonly input: CliInput;
@@ -76,34 +73,43 @@ async function runRepl(environment: CliEnvironment): Promise<void> {
   const calc = new RpnCalculator();
   let fullStackDisplay = false;
   const repl = createInterface({
-    input: environment.input as NodeJS.ReadableStream,
-    output: environment.output as NodeJS.WritableStream,
+    input: environment.input,
+    output: environment.output,
     prompt: promptFor(calc.view()),
     historySize: HISTORY_SIZE,
     removeHistoryDuplicates: true,
   });
+  let closed = false;
+  repl.once("close", () => {
+    closed = true;
+  });
+  const updatePrompt = (): void => {
+    if (closed) return;
+    repl.setPrompt(promptFor(calc.view()));
+    repl.prompt();
+  };
 
   writeLine(environment.output, "rpn32 — type 'help' for commands, 'quit' to exit");
   writeLine(environment.output, formatCalculatorStack(calc.view(), fullStackDisplay));
-  prompt(repl, calc);
+  updatePrompt();
 
   for await (const line of repl) {
     const input = parseReplInput(line);
     if (input.type === "quit") break;
     if (input.type === "help") {
       writeLine(environment.output, HELP);
-      prompt(repl, calc);
+      updatePrompt();
       continue;
     }
     if (input.type === "stack") {
       fullStackDisplay = input.full;
       writeLine(environment.output, formatCalculatorStack(calc.view(), fullStackDisplay));
-      prompt(repl, calc);
+      updatePrompt();
       continue;
     }
     if (input.type === "empty") {
       writeLine(environment.output, formatCalculatorStack(calc.view(), fullStackDisplay));
-      prompt(repl, calc);
+      updatePrompt();
       continue;
     }
 
@@ -115,15 +121,10 @@ async function runRepl(environment: CliEnvironment): Promise<void> {
     }
 
     writeLine(environment.output, formatCalculatorStack(calc.view(), fullStackDisplay));
-    prompt(repl, calc);
+    updatePrompt();
   }
 
-  repl.close();
-}
-
-function prompt(repl: ReplInterface, calc: RpnCalculator): void {
-  repl.setPrompt(promptFor(calc.view()));
-  repl.prompt();
+  if (!closed) repl.close();
 }
 
 async function readStdin(input: CliInput): Promise<string> {
@@ -135,4 +136,21 @@ async function readStdin(input: CliInput): Promise<string> {
 
 function writeLine(output: CliOutput, text: string): void {
   output.write(`${text}\n`);
+}
+
+type ReplInput =
+  | { readonly type: "empty" }
+  | { readonly type: "quit" }
+  | { readonly type: "help" }
+  | { readonly type: "stack"; readonly full: boolean }
+  | { readonly type: "expression"; readonly source: string };
+
+function parseReplInput(line: string): ReplInput {
+  const command = line.trim().toLowerCase();
+  if (command === "") return { type: "empty" };
+  if (command === "quit") return { type: "quit" };
+  if (command === "help") return { type: "help" };
+  if (command === "stack") return { type: "stack", full: true };
+  if (command === "stack off") return { type: "stack", full: false };
+  return { type: "expression", source: line };
 }

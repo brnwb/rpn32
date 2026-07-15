@@ -11,11 +11,13 @@ function readVersion(): string {
   return packageJson.version;
 }
 
-runCli(argv.slice(2), {
+const args = argv.slice(2);
+
+runCli(args, {
   input: stdin,
   output: stdout,
   error: stderr,
-  version: readVersion(),
+  version: args.includes("--version") || args.includes("-v") ? readVersion() : "",
   setExitCode(code) {
     process.exitCode = code;
   },

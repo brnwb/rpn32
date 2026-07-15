@@ -39,57 +39,55 @@ export interface ExecutionResult {
   readonly events: readonly CommandEvent[];
 }
 
-interface CommandContext {
-  readonly calc: RpnCalculator;
-  readonly events: CommandEvent[];
-}
-
-interface CommandDescriptor {
-  readonly aliases: readonly string[];
-  execute(context: CommandContext, tokens: readonly string[], index: number): number;
-}
-
-interface CommandRegistry {
-  readonly beforeNumber: ReadonlyMap<string, CommandDescriptor>;
-  readonly afterNumber: ReadonlyMap<string, CommandDescriptor>;
-}
-
-let commandRegistry: CommandRegistry | undefined;
-
 export function processLine(calc: RpnCalculator, line: string): ExecutionResult {
   return processTokens(calc, line.split(/\s+/).filter(Boolean));
 }
 
 export function processTokens(calc: RpnCalculator, tokens: Iterable<string>): ExecutionResult {
-  return calc.transaction(() => processTokensUnchecked(calc, tokens));
+  return calc.runTransaction(() => processTokensUnchecked(calc, tokens));
 }
 
 function processTokensUnchecked(calc: RpnCalculator, tokens: Iterable<string>): ExecutionResult {
   const tokenList = Array.from(tokens);
   const events: CommandEvent[] = [];
-  const context = { calc, events };
-  const registry = getCommandRegistry();
   let index = 0;
   while (index < tokenList.length) {
     const token = tokenList[index]?.trim().toLowerCase() ?? "";
-    const beforeNumber = registry.beforeNumber.get(token);
-    if (beforeNumber !== undefined) {
-      index = beforeNumber.execute(context, tokenList, index);
-      continue;
-    }
-    if (processNumber(calc, token)) {
+    if (setBaseMode(calc, token) || processNumber(calc, token)) {
       index += 1;
       continue;
     }
-    const afterNumber = registry.afterNumber.get(token);
-    if (afterNumber !== undefined) {
-      index = afterNumber.execute(context, tokenList, index);
-      continue;
+
+    if (token === "fix" || token === "sci" || token === "eng") {
+      setDisplayMode(calc, token, requiredArgument(tokenList, index, "a digit count"));
+      index += 2;
+    } else if (token === "frac") {
+      const denominatorToken = tokenList[index + 1];
+      if (denominatorToken !== undefined && isPlainIntegerToken(denominatorToken)) {
+        setFractionDisplay(calc, denominatorToken);
+        index += 2;
+      } else {
+        calc.toggleFractionDisplay();
+        index += 1;
+      }
+    } else if (token === "sto" || token === "rcl" || token === "view") {
+      processVariableCommand(
+        calc,
+        token,
+        requiredArgument(tokenList, index, "a variable name"),
+        events,
+      );
+      index += 2;
+    } else if (token === "clear") {
+      const scope = tokenList[index + 1]?.trim().toLowerCase();
+      if (scope === "var") calc.clearVariables();
+      else if (scope === "all") calc.clearAll();
+      else calc.clear();
+      index += scope === "var" || scope === "all" ? 2 : 1;
+    } else {
+      processSimpleCommand(calc, token, events);
+      index += 1;
     }
-    throw new RpnError(`unknown token: ${JSON.stringify(token)}`, {
-      code: "unknown_token",
-      token,
-    });
   }
   return { events };
 }
@@ -106,180 +104,135 @@ function processNumber(calc: RpnCalculator, token: string): boolean {
   return true;
 }
 
-function getCommandRegistry(): CommandRegistry {
-  commandRegistry ??= createCommandRegistry();
-  return commandRegistry;
-}
-
-function createCommandRegistry(): CommandRegistry {
-  const beforeNumber = new Map<string, CommandDescriptor>();
-  const afterNumber = new Map<string, CommandDescriptor>();
-
-  registerZero(beforeNumber, ["dec"], ({ calc }) => calc.setBaseMode(BaseMode.Dec));
-  registerZero(beforeNumber, ["hex"], ({ calc }) => calc.setBaseMode(BaseMode.Hex));
-  registerZero(beforeNumber, ["oct"], ({ calc }) => calc.setBaseMode(BaseMode.Oct));
-  registerZero(beforeNumber, ["bin"], ({ calc }) => calc.setBaseMode(BaseMode.Bin));
-
-  for (const mode of ["fix", "sci", "eng"] as const) {
-    registerRequired(afterNumber, [mode], "a digit count", ({ calc }, argument) =>
-      setDisplayMode(calc, mode, argument),
-    );
-  }
-
-  registerDescriptor(afterNumber, {
-    aliases: ["frac"],
-    execute({ calc }, tokens, index) {
-      const denominatorToken = tokens[index + 1];
-      if (denominatorToken !== undefined && isPlainIntegerToken(denominatorToken)) {
-        setFractionDisplay(calc, denominatorToken);
-        return index + 2;
-      }
-      calc.toggleFractionDisplay();
-      return index + 1;
-    },
-  });
-
-  for (const command of ["sto", "rcl", "view"] as const) {
-    registerRequired(afterNumber, [command], "a variable name", (context, variableName) =>
-      processVariableCommand(context.calc, command, variableName, context.events),
-    );
-  }
-
-  registerDescriptor(afterNumber, {
-    aliases: ["clear"],
-    execute({ calc }, tokens, index) {
-      const scope = tokens[index + 1]?.trim().toLowerCase();
-      if (scope === "var") {
-        calc.clearVariables();
-        return index + 2;
-      }
-      if (scope === "all") {
-        calc.clearAll();
-        return index + 2;
-      }
-      calc.clear();
-      return index + 1;
-    },
-  });
-
-  registerZero(afterNumber, ["rnd", "round"], ({ calc }) =>
-    calc.applyUnary((x) => roundToDisplay(x, calc.display), { preserveLastX: true }),
-  );
-  registerZero(afterNumber, ["enter", "dup"], ({ calc }) => calc.enter());
-  registerZero(afterNumber, ["drop"], ({ calc }) => calc.drop());
-  registerZero(afterNumber, ["clx"], ({ calc }) => calc.clearX());
-  registerZero(afterNumber, ["swap", "xy"], ({ calc }) => calc.swap());
-  registerZero(afterNumber, ["lastx"], ({ calc }) => calc.recallLastX());
-  registerZero(afterNumber, ["all"], ({ calc }) =>
-    calc.setDisplayMode(DisplayMode.All, calc.display.digits),
-  );
-  registerZero(afterNumber, ["vars"], ({ calc, events }) => {
-    const variables = calc.listVariables();
-    if (variables.length === 0) events.push({ type: "notice", code: "no_variables" });
-    else {
-      events.push(...variables.map((variable) => variableEvent(calc, variable)));
-    }
-  });
-  registerZero(afterNumber, ["deg"], ({ calc }) => calc.setAngleMode(AngleMode.Deg));
-  registerZero(afterNumber, ["rad"], ({ calc }) => calc.setAngleMode(AngleMode.Rad));
-  registerZero(afterNumber, ["grad"], ({ calc }) => calc.setAngleMode(AngleMode.Grad));
-  registerZero(afterNumber, ["pi"], ({ calc }) => calc.pushNumber(PI));
-  registerZero(afterNumber, ["e"], ({ calc }) => calc.pushNumber(E));
-
-  for (const aliases of [["+"], ["-"], ["*"], ["/"], ["^", "pow"], ["mod"]]) {
-    registerZero(afterNumber, aliases, ({ calc }) => {
-      const token = aliases[0] ?? "";
-      const operation = binaryOpsFor(calc)[token];
-      if (operation === undefined) throw new Error(`missing binary operation: ${token}`);
-      calc.applyBinary(operation);
+function requiredArgument(tokens: readonly string[], index: number, description: string): string {
+  const operation = tokens[index]?.trim().toLowerCase() ?? "command";
+  const argument = tokens[index + 1];
+  if (argument === undefined) {
+    throw new RpnError(`${operation} requires ${description}`, {
+      code: "missing_argument",
+      operation,
     });
   }
+  return argument;
+}
 
-  const unaryOperations: Array<readonly [readonly string[], UnaryOp]> = [
-    [["sqrt"], sqrt],
-    [["sq"], (x) => x.times(x)],
-    [["!", "fact"], factorial],
-    [["ln"], naturalLog],
-    [["log"], commonLog],
-    [["exp"], (x) => Decimal.exp(x)],
-    [["abs"], (x) => x.abs()],
-    [["int"], (x) => x.trunc()],
-    [["fpart"], fractionalPart],
-    [["floor"], (x) => x.floor()],
-    [["ceil"], (x) => x.ceil()],
-    [["chs", "neg"], (x) => x.neg()],
-    [["1/x"], reciprocal],
-  ];
-  for (const [aliases, operation] of unaryOperations) {
-    registerZero(afterNumber, aliases, ({ calc }) => calc.applyUnary(operation));
+const baseModes: Readonly<Record<string, BaseMode>> = {
+  dec: BaseMode.Dec,
+  hex: BaseMode.Hex,
+  oct: BaseMode.Oct,
+  bin: BaseMode.Bin,
+};
+
+function setBaseMode(calc: RpnCalculator, token: string): boolean {
+  const mode = baseModes[token];
+  if (mode === undefined) return false;
+  calc.setBaseMode(mode);
+  return true;
+}
+
+function processSimpleCommand(calc: RpnCalculator, token: string, events: CommandEvent[]): void {
+  const binaryOperation = binaryOpsFor(calc)[token];
+  if (binaryOperation !== undefined) {
+    calc.applyBinary(binaryOperation);
+    return;
   }
 
-  for (const token of [
-    "sin",
-    "cos",
-    "tan",
-    "asin",
-    "acos",
-    "atan",
-    "sinh",
-    "cosh",
-    "tanh",
-    "asinh",
-    "acosh",
-    "atanh",
-  ] as const) {
-    registerZero(afterNumber, [token], ({ calc }) => calc.applyUnary(trigOps(calc)[token]));
+  const unaryOperation = unaryOps[token];
+  if (unaryOperation !== undefined) {
+    calc.applyUnary(unaryOperation);
+    return;
+  }
+  if (trigTokens.has(token)) {
+    calc.applyUnary(trigOps(calc)[token]!);
+    return;
   }
 
-  return { beforeNumber, afterNumber };
-}
-
-function registerZero(
-  registry: Map<string, CommandDescriptor>,
-  aliases: readonly string[],
-  handler: (context: CommandContext) => void,
-): void {
-  registerDescriptor(registry, {
-    aliases,
-    execute(context, _tokens, index) {
-      handler(context);
-      return index + 1;
-    },
-  });
-}
-
-function registerRequired(
-  registry: Map<string, CommandDescriptor>,
-  aliases: readonly string[],
-  argumentDescription: string,
-  handler: (context: CommandContext, argument: string) => void,
-): void {
-  registerDescriptor(registry, {
-    aliases,
-    execute(context, tokens, index) {
-      const argument = tokens[index + 1];
-      const operation = tokens[index]?.trim().toLowerCase() ?? aliases[0] ?? "command";
-      if (argument === undefined) {
-        throw new RpnError(`${operation} requires ${argumentDescription}`, {
-          code: "missing_argument",
-          operation,
-        });
-      }
-      handler(context, argument);
-      return index + 2;
-    },
-  });
-}
-
-function registerDescriptor(
-  registry: Map<string, CommandDescriptor>,
-  descriptor: CommandDescriptor,
-): void {
-  for (const alias of descriptor.aliases) {
-    if (registry.has(alias)) throw new Error(`duplicate command alias: ${alias}`);
-    registry.set(alias, descriptor);
+  switch (token) {
+    case "rnd":
+    case "round":
+      calc.applyUnary((x) => roundToDisplay(x, calc.display), { preserveLastX: true });
+      return;
+    case "enter":
+    case "dup":
+      calc.enter();
+      return;
+    case "drop":
+      calc.drop();
+      return;
+    case "clx":
+      calc.clearX();
+      return;
+    case "swap":
+    case "xy":
+      calc.swap();
+      return;
+    case "lastx":
+      calc.recallLastX();
+      return;
+    case "all":
+      calc.setDisplayMode(DisplayMode.All, calc.display.digits);
+      return;
+    case "vars": {
+      const variables = calc.listVariables();
+      if (variables.length === 0) events.push({ type: "notice", code: "no_variables" });
+      else events.push(...variables.map((variable) => variableEvent(calc, variable)));
+      return;
+    }
+    case "deg":
+      calc.setAngleMode(AngleMode.Deg);
+      return;
+    case "rad":
+      calc.setAngleMode(AngleMode.Rad);
+      return;
+    case "grad":
+      calc.setAngleMode(AngleMode.Grad);
+      return;
+    case "pi":
+      calc.pushNumber(PI);
+      return;
+    case "e":
+      calc.pushNumber(E);
+      return;
+    default:
+      throw new RpnError(`unknown token: ${JSON.stringify(token)}`, {
+        code: "unknown_token",
+        token,
+      });
   }
 }
+
+const unaryOps: Readonly<Record<string, UnaryOp>> = {
+  sqrt,
+  sq: (x) => x.times(x),
+  "!": factorial,
+  fact: factorial,
+  ln: naturalLog,
+  log: commonLog,
+  exp: (x) => Decimal.exp(x),
+  abs: (x) => x.abs(),
+  int: (x) => x.trunc(),
+  fpart: fractionalPart,
+  floor: (x) => x.floor(),
+  ceil: (x) => x.ceil(),
+  chs: (x) => x.neg(),
+  neg: (x) => x.neg(),
+  "1/x": reciprocal,
+};
+
+const trigTokens = new Set([
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  "sinh",
+  "cosh",
+  "tanh",
+  "asinh",
+  "acosh",
+  "atanh",
+]);
 
 function parseDecimalInput(token: string): { isFraction: boolean; value: Decimal | undefined } {
   const fraction = parseFraction(token);
@@ -294,8 +247,8 @@ function binaryOpsFor(calc: RpnCalculator): Record<string, BinaryOp> {
       "-": baseBinaryOp((a, b) => a - b),
       "*": baseBinaryOp((a, b) => a * b),
       "/": baseDivide,
-      "^": decimalPower,
-      pow: decimalPower,
+      "^": basePower,
+      pow: basePower,
       mod: baseModulo,
     };
   }
@@ -334,6 +287,29 @@ function baseModulo(a: Decimal, b: Decimal): Decimal {
 
   const result = requireBaseInteger(a) % divisor;
   return new Decimal(clampBaseInteger(result).toString());
+}
+
+function basePower(a: Decimal, b: Decimal): Decimal {
+  const base = requireBaseInteger(a);
+  let exponent = requireBaseInteger(b);
+
+  if (exponent < 0n) {
+    if (base === 0n) {
+      throw new RpnError("invalid operation (divide by zero)", { code: "divide_by_zero" });
+    }
+    if (base === 1n) return new Decimal(1);
+    if (base === -1n) return new Decimal(exponent % 2n === 0n ? 1 : -1);
+    return new Decimal(0);
+  }
+
+  let result = 1n;
+  let factor = base;
+  while (exponent > 0n) {
+    if (exponent % 2n === 1n) result = clampBaseInteger(result * factor);
+    exponent /= 2n;
+    if (exponent > 0n) factor = clampBaseInteger(factor * factor);
+  }
+  return new Decimal(result.toString());
 }
 
 function requireBaseInteger(value: Decimal): bigint {
@@ -421,23 +397,7 @@ function roundToFractionDisplay(value: Decimal, maxDenominator: number): Decimal
   return sign < 0 ? roundedMagnitude.neg() : roundedMagnitude;
 }
 
-function trigOps(
-  calc: RpnCalculator,
-): Pick<
-  Record<string, UnaryOp>,
-  | "sin"
-  | "cos"
-  | "tan"
-  | "asin"
-  | "acos"
-  | "atan"
-  | "sinh"
-  | "cosh"
-  | "tanh"
-  | "asinh"
-  | "acosh"
-  | "atanh"
-> {
+function trigOps(calc: RpnCalculator): Readonly<Record<string, UnaryOp>> {
   return {
     sin: (x) => exactQuadrantTrig(calc, x, "sin") ?? Decimal.sin(calc.toRadians(x)),
     cos: (x) => exactQuadrantTrig(calc, x, "cos") ?? Decimal.cos(calc.toRadians(x)),

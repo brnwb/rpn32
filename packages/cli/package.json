@@ -36,7 +36,8 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@brnwb/rpn32-core": "workspace:*"
+    "@brnwb/rpn32-core": "workspace:*",
+    "@types/node": "^24.10.1"
   },
   "engines": {
     "node": ">=22.13.0"

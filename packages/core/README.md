@@ -24,7 +24,7 @@ for (const event of result.events) {
 }
 ```
 
-Use decimal strings with `numberValue` when the input must remain exact. Calculator views are defensive, read-only snapshots. Invalid input and math operations throw `RpnError`, whose `code` property provides a stable machine-readable category.
+Use decimal strings with `numberValue` when the input must remain exact. Calculator views are isolated, read-only snapshots: changing a returned value cannot mutate calculator-owned state. Invalid input and math operations throw `RpnError`, whose `code` property provides a stable machine-readable category.
 
 The vendored `Decimal` constructor and numeric implementation helpers are intentionally not part of the package facade.
 

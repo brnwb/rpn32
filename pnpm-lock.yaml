@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@brnwb/rpn32-cli':
+        specifier: workspace:*
+        version: link:packages/cli
       '@brnwb/rpn32-core':
         specifier: workspace:*
         version: link:packages/core
@@ -35,6 +38,9 @@ importers:
       '@brnwb/rpn32-core':
         specifier: workspace:*
         version: link:../core
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.12.4
 
   packages/core: {}
 

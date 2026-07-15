@@ -190,7 +190,6 @@ packages/
     src/
       bin.ts            executable process entry point
       app.ts            injected CLI application and readline lifecycle
-      session.ts        pure REPL-local command parsing
       rendering.ts      stack, event, prompt, and error rendering
 ```
 
