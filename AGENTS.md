@@ -23,6 +23,7 @@ Run from the repository root:
 
 ## Guidelines
 
+- Ensure `pnpm run check` passes before pushing directly to `main`; configured workspaces enforce this with a pre-push hook.
 - Keep calculator behavior in `packages/core`.
 - Keep terminal/readline behavior in `packages/cli`.
 - Add or update tests for calculator behavior changes.

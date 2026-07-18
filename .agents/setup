@@ -36,3 +36,28 @@ corepack enable pnpm --install-directory "$HOME/.local/bin"
 
 echo "Installing workspace dependencies..."
 pnpm install --frozen-lockfile
+
+# Keep the orb's existing shared hooks (such as commit attribution) and add a
+# dispatcher that runs a repository-owned pre-push hook when one exists.
+echo "Installing repository Git hooks..."
+hooks_path="$(git config --path --get core.hooksPath || git rev-parse --git-path hooks)"
+mkdir -p "$hooks_path"
+pre_push_dispatcher="$hooks_path/pre-push"
+
+if [[ ! -e "$pre_push_dispatcher" ]] || grep -q "rpn32 repository hook dispatcher" "$pre_push_dispatcher"; then
+  cat > "$pre_push_dispatcher" <<'EOF'
+#!/bin/sh
+# rpn32 repository hook dispatcher
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+repo_hook="$repo_root/.githooks/pre-push"
+
+if [ -n "$repo_root" ] && [ -x "$repo_hook" ]; then
+  exec "$repo_hook" "$@"
+fi
+EOF
+  chmod +x "$pre_push_dispatcher"
+else
+  echo "Existing pre-push hook preserved; install .githooks/pre-push manually if needed."
+fi
