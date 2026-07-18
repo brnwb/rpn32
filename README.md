@@ -178,16 +178,21 @@ This is a pnpm workspace monorepo with the reusable calculator engine separated 
 packages/
   core/                 @brnwb/rpn32-core
     src/
-      calculator.ts     HP-style stack/state, Decimal setup, settings, and errors
-      commands.ts       token parsing, command execution, and math helpers
-      display.ts        display formatting and stack rendering
+      calculator.ts     internal mutable machine, Decimal setup, settings, and errors
+      engine.ts         narrow public API and detached, read-only state snapshots
+      commands.ts       token grammar, validation, and command dispatch
+      operations.ts     mathematical operations and domain validation
+      base.ts           36-bit integer parsing, arithmetic, and conversion
+      fraction.ts       fraction parsing, approximation, and decomposition
+      display.ts        numeric formatting, display rounding, and stack rendering
       index.ts          public core exports
     test/
       calculator.test.ts
 
   cli/                  @brnwb/rpn32-cli
     src/
-      cli.ts            Node readline REPL
+      session.ts        Node-free calculator session and terminal presentation
+      cli.ts            Node process, stdin, and readline adapter
 ```
 
 The CLI depends on `@brnwb/rpn32-core`; calculator behavior belongs in the core package, while terminal behavior belongs in the CLI package.

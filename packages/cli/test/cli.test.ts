@@ -28,6 +28,16 @@ describe("rpn32 CLI", () => {
     expect(stderr).toBe("");
   });
 
+  test("does not expose compiled session modules as package APIs", async () => {
+    await expect(
+      execFileAsync(
+        process.execPath,
+        ["--input-type=module", "--eval", 'import("@brnwb/rpn32-cli/dist/session.js")'],
+        { cwd: "packages/cli" },
+      ),
+    ).rejects.toMatchObject({ stderr: expect.stringContaining("ERR_PACKAGE_PATH_NOT_EXPORTED") });
+  });
+
   test("evaluates a single quoted command-line expression", async () => {
     const { stdout, stderr } = await execFileAsync(process.execPath, [
       "packages/cli/dist/cli.js",

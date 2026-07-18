@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Changed
+
+- **Breaking:** Replaced the mutable `RpnCalculator` API with an invariant-preserving façade. Calculator expressions now run through `execute()`, which returns structured output events and a detached, read-only state snapshot.
+- **Breaking:** Removed low-level command processors, mutable calculator fields and methods, transaction and operation callbacks, parsing helpers, numeric-policy helpers, internal constants, and `StackUnderflowError` from the `@brnwb/rpn32-core` package exports.
+- **Breaking:** Changed `view` and `vars` results from queued display strings to structured variable output events; terminal formatting now belongs to the CLI session.
+- **Breaking:** Made `@brnwb/rpn32-cli` binary-only by removing its programmatic entry points and blocking package subpath exports.
+- Moved calculator behavior into focused state-machine, command, operation, base-integer, fraction, display, and public-engine modules.
+- Centralized whole-expression rollback at the public execution boundary so stack, `LASTX`, display settings, modes, variables, and output events are restored atomically after failures.
+- Separated the Node readline/process adapter from the testable CLI calculator session.
+
+### Fixed
+
+- Prevented returned state snapshots and output events from mutating calculator internals through shared arrays, maps, display settings, or Decimal coefficient arrays.
+- Prevented inherited object-property names such as `constructor` and `__proto__` from being interpreted as calculator commands.
+
 ## [0.3.1] - 2026-05-25
 
 - Renamed CLI npm package from `@brnwb/rpn32` to `@brnwb/rpn32-cli`.

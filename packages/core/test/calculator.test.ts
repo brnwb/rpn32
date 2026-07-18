@@ -5,15 +5,66 @@ import {
   AngleMode,
   BaseMode,
   DisplayMode,
-  RpnCalculator,
+  RpnCalculator as PublicRpnCalculator,
   RpnError,
-  ZERO,
   formatNumber,
   formatStack,
-  processLine,
+  type NumberValue,
+  type OutputEvent,
 } from "../src/index.js";
 
 const d = (value: string | number): Decimal => new Decimal(value);
+const ZERO = d(0);
+
+class RpnCalculator extends PublicRpnCalculator {
+  outputs: readonly OutputEvent[] = [];
+  get stack() {
+    return this.state.stack;
+  }
+  get x() {
+    return this.state.stack[3];
+  }
+  get y() {
+    return this.state.stack[2];
+  }
+  get z() {
+    return this.state.stack[1];
+  }
+  get t() {
+    return this.state.stack[0];
+  }
+  get lastX() {
+    return this.state.lastX;
+  }
+  get display() {
+    return this.state.display;
+  }
+  get angleMode() {
+    return this.state.angleMode;
+  }
+  get baseMode() {
+    return this.state.baseMode;
+  }
+  get variables() {
+    return this.state.variables;
+  }
+  get messages(): string[] {
+    return this.outputs.map((output) =>
+      output.type === "empty-variables"
+        ? "no variables"
+        : `${output.name === "i" ? output.name : output.name.toUpperCase()}: ${output.value.toString()}`,
+    );
+  }
+  takeMessages(): string[] {
+    const messages = this.messages;
+    this.outputs = [];
+    return messages;
+  }
+}
+
+const processLine = (calc: RpnCalculator, expression: string): void => {
+  calc.outputs = calc.execute(expression).outputs;
+};
 
 const expectStack = (calc: RpnCalculator, expected: Decimal[]): void => {
   expect(calc.stack.map((value) => value.toString())).toEqual(
@@ -26,6 +77,74 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
     expect(calc.x.eq(ZERO)).toBe(true);
+  });
+
+  test("failed expressions atomically restore all public state", () => {
+    const calc = new RpnCalculator();
+    calc.execute("8 2 / 42 sto A fix 2 frac 7 rad hex dec");
+    const before = calc.state;
+    expect(() => calc.execute("1 sto B grad bin view B nope")).toThrow("unknown token");
+    expect(calc.state).toEqual(before);
+    expect(calc.execute("vars").outputs.map((output) => output.type)).toEqual(["variable"]);
+  });
+
+  test("state snapshots deeply detach mutable containers and settings", () => {
+    const calc = new PublicRpnCalculator();
+    calc.execute("1 2 fix 3 frac 7 42 sto A");
+    const snapshot = calc.state;
+
+    (snapshot.stack as NumberValue[])[3] = d(99);
+    (snapshot.display as { digits: number }).digits = 9;
+    (snapshot.display.fraction as { maxDenominator: number }).maxDenominator = 2;
+    (snapshot.variables as Map<string, Decimal>).set("b", d(88));
+    snapshot.stack[2].d[0] = 99;
+    snapshot.lastX.d[0] = 99;
+    snapshot.variables.get("a")!.d[0] = 99;
+
+    const fresh = calc.state;
+    expect(fresh.stack[3].toString()).toBe("42");
+    expect(fresh.stack[2].toString()).toBe("2");
+    expect(fresh.lastX.toString()).toBe("0");
+    expect(fresh.display.digits).toBe(3);
+    expect(fresh.display.fraction.maxDenominator).toBe(7);
+    expect(fresh.variables.get("a")?.toString()).toBe("42");
+    expect(fresh.variables.has("b")).toBe(false);
+    expect(fresh.stack).not.toBe(snapshot.stack);
+    expect(fresh.display).not.toBe(snapshot.display);
+    expect(fresh.display.fraction).not.toBe(snapshot.display.fraction);
+    expect(fresh.variables).not.toBe(snapshot.variables);
+  });
+
+  test("execute returns structured, execution-scoped variable output", () => {
+    const calc = new PublicRpnCalculator();
+    const viewed = calc.execute("42 sto A view A");
+    expect(viewed.outputs).toHaveLength(1);
+    expect(viewed.outputs[0]?.type).toBe("variable");
+    expect(viewed.outputs[0]).toMatchObject({ type: "variable", name: "a" });
+    if (viewed.outputs[0]?.type === "variable") viewed.outputs[0].value.d[0] = 99;
+    expect(calc.state.variables.get("a")?.toString()).toBe("42");
+    expect(calc.execute("1").outputs).toEqual([]);
+
+    const empty = new PublicRpnCalculator().execute("vars");
+    expect(empty.outputs).toEqual([{ type: "empty-variables" }]);
+  });
+
+  test("execution results remain detached from later executions", () => {
+    const calc = new PublicRpnCalculator();
+    const first = calc.execute("1");
+
+    calc.execute("2");
+
+    expect(first.state.stack[3].toString()).toBe("1");
+    expect(calc.state.stack[3].toString()).toBe("2");
+  });
+
+  test("failed expressions do not leak partial output into later executions", () => {
+    const calc = new PublicRpnCalculator();
+    calc.execute("42 sto A");
+
+    expect(() => calc.execute("view A nope")).toThrow('unknown token: "nope"');
+    expect(calc.execute("1").outputs).toEqual([]);
   });
 
   test("one-line expression", () => {
@@ -349,6 +468,16 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("10");
   });
 
+  test("object prototype names are not treated as base mode commands", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "20");
+
+    expect(() => processLine(calc, "30 constructor")).toThrow('unknown token: "constructor"');
+    expect(() => processLine(calc, "30 __proto__")).toThrow('unknown token: "__proto__"');
+    expect(calc.baseMode).toBe(BaseMode.Dec);
+    expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
   test("base modes reject invalid digits and roll back the whole line", () => {
     const calc = new RpnCalculator();
     processLine(calc, "hex a");
@@ -577,31 +706,12 @@ describe("RpnCalculator", () => {
     expectStack(calc, [ZERO, ZERO, d("1e9000000000000000"), d(10)]);
   });
 
-  test("decimal library errors are normalized and preserve calculator state", () => {
+  test("public math errors preserve calculator state", () => {
     const calc = new RpnCalculator();
-    processLine(calc, "7 8 9 10 fix 2 rad 42 sto A 8 2 /");
-    const stack = [...calc.stack];
-    const lastX = calc.lastX;
-    const display = { ...calc.display };
-    const angleMode = calc.angleMode;
-    const variables = new Map(calc.variables);
-
-    const runInvalidDecimalOperation = (): void =>
-      calc.applyUnary(() => {
-        throw new Error("[DecimalError] Precision limit exceeded");
-      });
-
-    expect(runInvalidDecimalOperation).toThrow(RpnError);
-    expect(runInvalidDecimalOperation).toThrow("invalid operation (precision limit exceeded)");
-    expect(calc.stack.map((value) => value.toString())).toEqual(
-      stack.map((value) => value.toString()),
-    );
-    expect(calc.lastX.toString()).toBe(lastX.toString());
-    expect(calc.display).toEqual(display);
-    expect(calc.angleMode).toBe(angleMode);
-    expect([...calc.variables.entries()].map(([name, value]) => [name, value.toString()])).toEqual(
-      [...variables.entries()].map(([name, value]) => [name, value.toString()]),
-    );
+    calc.execute("7 8 9 fix 2 rad 42 sto A -1");
+    const before = calc.state;
+    expect(() => calc.execute("sqrt")).toThrow(RpnError);
+    expect(calc.state).toEqual(before);
   });
 
   test("default trig angle mode is degrees", () => {

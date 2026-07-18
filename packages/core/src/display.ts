@@ -7,12 +7,11 @@ import {
   MAX_DISPLAY_DECIMAL_PLACES,
   RpnError,
   ZERO,
-  approximateFraction,
-  baseIntegerFromDecimal,
-  toBaseWord,
   type DisplaySettings,
   type NumberValue,
 } from "./calculator.js";
+import { baseIntegerFromDecimal, toBaseWord } from "./base.js";
+import { decomposeFraction, reconstructFraction } from "./fraction.js";
 
 export function formatNumber(
   value: NumberValue,
@@ -76,6 +75,25 @@ function fixedWouldExceedDisplay(value: NumberValue, digits: number): boolean {
   return value.e >= 0 && value.e + 1 + digits > DISPLAY_SIGNIFICANT_DIGITS;
 }
 
+export function roundToDisplay(value: NumberValue, display: DisplaySettings): NumberValue {
+  if (display.fraction.enabled) {
+    return reconstructFraction(decomposeFraction(value, display.fraction.maxDenominator));
+  }
+  switch (display.mode) {
+    case DisplayMode.Fix:
+      if (fixedWouldRoundToZero(value, display.digits)) return ZERO;
+      if (fixedWouldExceedDisplay(value, display.digits)) {
+        return value.toSignificantDigits(display.digits + 1);
+      }
+      return new Decimal(value.toFixed(display.digits));
+    case DisplayMode.Sci:
+    case DisplayMode.Eng:
+      return value.toSignificantDigits(display.digits + 1);
+    case DisplayMode.All:
+      return value.toSignificantDigits(DISPLAY_SIGNIFICANT_DIGITS);
+  }
+}
+
 function modulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor;
 }
@@ -113,17 +131,9 @@ function formatFraction(value: NumberValue, maxDenominator: number): string {
   if (value.isZero()) return "0";
   if (!value.isFinite()) return formatAll(value);
 
-  const sign = value.isNegative() ? "-" : "";
-  const absolute = value.abs();
-  const integerPart = absolute.trunc();
-  const fractionPart = absolute.minus(integerPart);
-  if (fractionPart.isZero()) return `${sign}${integerPart.toFixed(0)}`;
-
-  const [numerator, denominator] = approximateFraction(fractionPart, maxDenominator);
-  if (numerator === 0n) return `${sign}${integerPart.toFixed(0)}`;
-
-  const integer = BigInt(integerPart.toFixed(0));
-  if (numerator === denominator) return `${sign}${integer + 1n}`;
+  const { negative, integer, numerator, denominator } = decomposeFraction(value, maxDenominator);
+  const sign = negative ? "-" : "";
+  if (numerator === 0n) return `${sign}${integer}`;
   if (integer === 0n) return `${sign}${numerator}/${denominator}`;
   return `${sign}${integer} ${numerator}/${denominator}`;
 }
