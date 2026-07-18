@@ -9,12 +9,12 @@ type ReplInterface = ReturnType<typeof createInterface> & { history: string[] };
 const HISTORY_SIZE = 1000;
 
 async function main(args: string[] = argv.slice(2)): Promise<void> {
-  if (args.includes("--help") || args.includes("-h")) {
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
     console.log(HELP);
     return;
   }
 
-  if (args.includes("--version") || args.includes("-v")) {
+  if (args.length === 1 && (args[0] === "--version" || args[0] === "-v")) {
     console.log(readVersion());
     return;
   }

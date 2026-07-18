@@ -5,10 +5,10 @@ import { describe, expect, test } from "vitest";
 const execFileAsync = promisify(execFile);
 
 describe("rpn32 CLI", () => {
-  test("prints help", async () => {
+  test.each(["--help", "-h"])("prints help for %s", async (flag) => {
     const { stdout, stderr } = await execFileAsync(process.execPath, [
       "packages/cli/dist/cli.js",
-      "--help",
+      flag,
     ]);
 
     expect(stdout).toContain("Usage:");
@@ -18,10 +18,10 @@ describe("rpn32 CLI", () => {
     expect(stderr).toBe("");
   });
 
-  test("prints version", async () => {
+  test.each(["--version", "-v"])("prints version for %s", async (flag) => {
     const { stdout, stderr } = await execFileAsync(process.execPath, [
       "packages/cli/dist/cli.js",
-      "--version",
+      flag,
     ]);
 
     expect(stdout).toBe("0.4.0\n");
@@ -61,6 +61,21 @@ describe("rpn32 CLI", () => {
   test("rejects multiple command-line expression arguments", async () => {
     await expect(
       execFileAsync(process.execPath, ["packages/cli/dist/cli.js", "3", "2", "+"]),
+    ).rejects.toMatchObject({
+      stdout: "",
+      stderr:
+        "error: expression must be provided as a single quoted argument\nusage: rpn32 '3 2 +'\n",
+    });
+  });
+
+  test.each(
+    ["--help", "-h", "--version", "-v"].flatMap((flag) => [
+      [flag, "3"],
+      ["3", flag],
+    ]),
+  )("recognizes %s only when it is the sole argument", async (...args) => {
+    await expect(
+      execFileAsync(process.execPath, ["packages/cli/dist/cli.js", ...args]),
     ).rejects.toMatchObject({
       stdout: "",
       stderr:
