@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+node_version="22.13.0"
+node_dir="$HOME/.local/share/node-v${node_version}-linux-x64"
+node_bin="$node_dir/bin"
+
+echo "Installing Node.js ${node_version}..."
+if [[ ! -x "$node_bin/node" ]]; then
+  archive="$(mktemp --suffix=.tar.xz)"
+  trap 'rm -f "$archive"' EXIT
+  curl --fail --location --silent --show-error \
+    "https://nodejs.org/dist/v${node_version}/node-v${node_version}-linux-x64.tar.xz" \
+    --output "$archive"
+  mkdir -p "$node_dir"
+  tar -xJf "$archive" --strip-components=1 -C "$node_dir"
+fi
+
+# Lifecycle scripts cannot alter the environment of later agent shells. Put the
+# selected Node.js first on the orb's existing PATH via ~/.local/bin.
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$node_bin/node" "$HOME/.local/bin/node"
+export PATH="$HOME/.local/bin:$node_bin:$PATH"
+
+echo "Enabling the packageManager-pinned pnpm version..."
+# Node 22.13 ships a Corepack release whose stale signing keys cannot verify
+# current pnpm releases.
+"$node_bin/npm" install --global corepack@0.34.5
+"$node_bin/corepack" enable --install-directory "$HOME/.local/bin"
+corepack prepare --activate
+
+echo "Installing workspace dependencies..."
+pnpm install --frozen-lockfile
