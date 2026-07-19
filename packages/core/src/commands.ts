@@ -14,6 +14,8 @@ import { parseFraction } from "./fraction.js";
 import { roundToDisplay } from "./display.js";
 import { binaryOperations, unaryOperations } from "./operations.js";
 
+const DECIMAL_ONLY_OPERATIONS = new Set(["sqrt", "exp", "ln", "^", "pow", "1/x"]);
+
 export function processLine(calc: CalculatorMachine, line: string): void {
   processTokens(calc, line.split(/\s+/).filter(Boolean));
 }
@@ -66,8 +68,10 @@ export function processToken(calc: CalculatorMachine, token: string): void {
       : parseBaseInteger(token, calc.baseMode);
   if (value !== undefined) {
     calc.pushNumber(value);
-    if (fraction !== undefined) calc.setFractionDisplay(0);
     return;
+  }
+  if (calc.baseMode !== BaseMode.Dec && DECIMAL_ONLY_OPERATIONS.has(token)) {
+    throw new RpnError(`${token} is unavailable in ${calc.baseMode} mode`);
   }
   const binary = binaryOperations(calc).get(token);
   if (binary) {
@@ -81,12 +85,13 @@ export function processToken(calc: CalculatorMachine, token: string): void {
   }
   switch (token) {
     case "rnd":
-    case "round": {
-      const last = calc.lastX;
+    case "round":
       calc.applyUnary((x) => roundToDisplay(x, calc.display));
-      calc.lastX = last;
       return;
-    }
+    case "chs":
+    case "neg":
+      calc.changeSign();
+      return;
     case "enter":
     case "dup":
       calc.enter();

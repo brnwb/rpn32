@@ -36,7 +36,7 @@ REPL commands:
   clear all       clear stack, lastx, and variables
   fix n           show n digits after the decimal point
   sci n           show scientific notation with n decimal places
-  eng n           show engineering notation with n decimal places
+  eng n           show engineering notation with n digits after the first significant digit
   frac [n]        toggle fraction display, or set max denominator n
   all             show compact 12-digit display
   stack           show all stack registers after each entry

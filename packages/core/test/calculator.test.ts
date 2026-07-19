@@ -260,6 +260,12 @@ describe("RpnCalculator", () => {
     expectStack(calc, [ZERO, ZERO, d(1), d(2)]);
   });
 
+  test("store enables stack lift", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 enter sto A 2");
+    expectStack(calc, [ZERO, d(1), d(1), d(2)]);
+  });
+
   test("recall lifts the stack and uninitialized variables recall zero", () => {
     const calc = new RpnCalculator();
     processLine(calc, "7 rcl C");
@@ -354,15 +360,46 @@ describe("RpnCalculator", () => {
 
     processLine(calc, "1..2 1.1.2 -1.1.2");
     expectStack(calc, [ZERO, d("0.5"), d("1.5"), d("-1.5")]);
-    expect(calc.display.fraction.enabled).toBe(true);
-    expect(formatStack(calc.stack, calc.display)).toBe("-1 1/2");
+    expect(calc.display.fraction.enabled).toBe(false);
+    expect(formatStack(calc.stack, calc.display)).toBe("-1.5");
   });
 
-  test("fraction input enables fraction display and works with arithmetic", () => {
+  test("fraction input enforces HP entry digit limits", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "20");
+
+    expect(() => processLine(calc, "12345678.12345.2")).toThrow(
+      "fraction integer and numerator must not exceed 12 digits total",
+    );
+    expect(() => processLine(calc, "1.2.10000")).toThrow(
+      "fraction denominator must not exceed 4 digits",
+    );
+    expect(() => processLine(calc, "000000000001.1.2")).toThrow(
+      "fraction integer and numerator must not exceed 12 digits total",
+    );
+    expectStack(calc, [ZERO, ZERO, ZERO, d(20)]);
+  });
+
+  test("fraction input accepts the HP digit-limit boundaries", () => {
     const calc = new RpnCalculator();
 
-    processLine(calc, "1.1.2 3..4 +");
+    processLine(calc, "12345678.1234.9999 15..8192");
+
+    expect(calc.y.eq(d("12345678").plus(d("1234").div(9999)))).toBe(true);
+    expect(calc.x.eq(d(15).div(8192))).toBe(true);
+  });
+
+  test("fraction input uses the current display mode and denominator", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "frac 8 frac 1..2");
+    expect(calc.display.fraction.enabled).toBe(false);
+    expect(calc.display.fraction.maxDenominator).toBe(8);
+    expect(formatStack(calc.stack, calc.display)).toBe("0.5");
+
+    processLine(calc, "frac 1.1.2 3..4 +");
     expect(calc.x.toString()).toBe("2.25");
+    expect(calc.display.fraction.maxDenominator).toBe(8);
     expect(formatStack(calc.stack, calc.display)).toBe("2 1/4");
   });
 
@@ -442,6 +479,18 @@ describe("RpnCalculator", () => {
     processLine(calc, "100 5 /");
     expect(calc.x.toString()).toBe("12");
     expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("14");
+  });
+
+  test("HP-disabled operations are unavailable outside decimal mode", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "9 hex");
+    const stack = [...calc.stack];
+
+    for (const operation of ["sqrt", "exp", "ln", "^", "pow", "1/x"]) {
+      expect(() => processLine(calc, operation)).toThrow(`${operation} is unavailable in hex mode`);
+      expectStack(calc, stack);
+      expect(calc.baseMode).toBe(BaseMode.Hex);
+    }
   });
 
   test("base mode arithmetic clamps 36-bit overflow", () => {
@@ -527,6 +576,22 @@ describe("RpnCalculator", () => {
     expectStack(calc, [ZERO, ZERO, d(-8), d("0.333333333333333")]);
   });
 
+  test("zero cannot be raised to zero or a negative power", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "0 0");
+    expect(() => processLine(calc, "^")).toThrow(
+      "invalid operation (zero base requires a positive exponent)",
+    );
+    expectStack(calc, [ZERO, ZERO, ZERO, ZERO]);
+
+    processLine(calc, "clx -1");
+    expect(() => processLine(calc, "pow")).toThrow(
+      "invalid operation (zero base requires a positive exponent)",
+    );
+    expectStack(calc, [ZERO, ZERO, ZERO, d(-1)]);
+  });
+
   test("unknown token rolls back the whole input line", () => {
     const calc = new RpnCalculator();
     processLine(calc, "20");
@@ -597,10 +662,17 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("12.35");
   });
 
+  test("rnd uses fixed decimal places when display falls back to scientific notation", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "123456789.012 fix 4 rnd");
+    expect(calc.x.toString()).toBe("123456789.012");
+    expect(formatStack(calc.stack, calc.display)).toBe("1.2346e+8");
+  });
+
   test("rnd avoids materializing huge fixed-point strings", () => {
     const calc = new RpnCalculator();
     processLine(calc, "1.2345e9000000000000000 fix 2 rnd");
-    expect(calc.x.toString()).toBe("1.23e+9000000000000000");
+    expect(calc.x.toString()).toBe("1.2345e+9000000000000000");
   });
 
   test("rnd rounds X internally according to scientific display format", () => {
@@ -618,10 +690,10 @@ describe("RpnCalculator", () => {
 
     processLine(calc, "1.234 frac 100 rnd");
     expect(calc.x.toString()).toBe("1.23404255319149");
-    expect(formatStack(calc.stack, calc.display)).toBe("1 11/47");
+    expect(formatStack(calc.stack, calc.display)).toBe("↑ 1 11/47");
   });
 
-  test("rnd preserves lastx", () => {
+  test("rnd saves its input in lastx", () => {
     const calc = new RpnCalculator();
 
     processLine(calc, "8 2 /");
@@ -629,10 +701,23 @@ describe("RpnCalculator", () => {
 
     processLine(calc, "1.2 frac 4 rnd");
     expect(calc.x.toString()).toBe("1.25");
-    expect(calc.lastX.toString()).toBe("2");
+    expect(calc.lastX.toString()).toBe("1.2");
 
     processLine(calc, "1.234 fix 1 round");
     expect(calc.x.toString()).toBe("1.2");
+    expect(calc.lastX.toString()).toBe("1.234");
+  });
+
+  test("change sign does not update lastx", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "8 2 /");
+
+    processLine(calc, "9 chs");
+    expect(calc.x.toString()).toBe("-9");
+    expect(calc.lastX.toString()).toBe("2");
+
+    processLine(calc, "3 neg");
+    expect(calc.x.toString()).toBe("-3");
     expect(calc.lastX.toString()).toBe("2");
   });
 
@@ -866,7 +951,13 @@ describe("RpnCalculator", () => {
   test("engineering display mode", () => {
     const calc = new RpnCalculator();
     processLine(calc, "12345 eng 3");
-    expect(formatStack(calc.stack, calc.display)).toBe("12.345e+3");
+    expect(formatStack(calc.stack, calc.display)).toBe("12.35e+3");
+  });
+
+  test("engineering display preserves significant digits when rounding changes the exponent", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "999.99 eng 3");
+    expect(formatStack(calc.stack, calc.display)).toBe("1.000e+3");
   });
 
   test("all display mode restores compact display", () => {
@@ -874,6 +965,24 @@ describe("RpnCalculator", () => {
     processLine(calc, "5 fix 2 all");
     expect(calc.display.mode).toBe(DisplayMode.All);
     expect(formatStack(calc.stack, calc.display)).toBe("5");
+  });
+
+  test("all display uses scientific notation when ordinary notation exceeds 12 digits", () => {
+    expect(formatNumber(d("999999999999"))).toBe("999999999999");
+    expect(formatNumber(d("1000000000000"))).toBe("1e+12");
+    expect(formatNumber(d("-1000000000000"))).toBe("-1e+12");
+    expect(formatNumber(d("0.00000000001"))).toBe("0.00000000001");
+    expect(formatNumber(d("0.000000000001"))).toBe("1e-12");
+    expect(formatNumber(d("-0.000000000001"))).toBe("-1e-12");
+    expect(formatNumber(d("0.12345678901"))).toBe("0.12345678901");
+    expect(formatNumber(d("0.123456789012"))).toBe("1.23456789012e-1");
+    expect(formatNumber(d("1e9000000000000000"))).toBe("1e+9000000000000000");
+  });
+
+  test("all display chooses notation after rounding to 12 significant digits", () => {
+    expect(formatNumber(d("999999999999.4"))).toBe("999999999999");
+    expect(formatNumber(d("999999999999.5"))).toBe("1e+12");
+    expect(formatNumber(d("0.000000000009999999999995"))).toBe("0.00000000001");
   });
 
   test("fraction display toggles decimal values without changing the stack", () => {
@@ -894,13 +1003,50 @@ describe("RpnCalculator", () => {
 
     processLine(calc, "1.33333333333333 frac 8");
     expect(calc.display.fraction.maxDenominator).toBe(8);
-    expect(formatStack(calc.stack, calc.display)).toBe("1 1/3");
+    expect(formatStack(calc.stack, calc.display)).toBe("↓ 1 1/3");
 
     processLine(calc, "1.2 frac 4");
-    expect(formatStack(calc.stack, calc.display)).toBe("1 1/4");
+    expect(formatStack(calc.stack, calc.display)).toBe("↓ 1 1/4");
 
     processLine(calc, "frac 0");
     expect(calc.display.fraction.maxDenominator).toBe(4095);
+  });
+
+  test("fraction display indicates whether an approximation is above or below the exact value", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "1.25 frac 4");
+    expect(formatStack(calc.stack, calc.display)).toBe("1 1/4");
+
+    processLine(calc, "1.2");
+    expect(formatStack(calc.stack, calc.display)).toBe("↓ 1 1/4");
+
+    processLine(calc, "0.26");
+    expect(formatStack(calc.stack, calc.display)).toBe("↑ 1/4");
+
+    processLine(calc, "-0.26");
+    expect(formatStack(calc.stack, calc.display)).toBe("↑ -1/4");
+  });
+
+  test("fraction display detects approximations hidden by internal decimal precision", () => {
+    const calc = new RpnCalculator();
+
+    processLine(calc, "1 3 / frac");
+    expect(formatStack(calc.stack, calc.display)).toBe("↓ 1/3");
+
+    processLine(calc, "2 3 /");
+    expect(formatStack(calc.stack, calc.display)).toBe("↑ 2/3");
+  });
+
+  test("fraction rounding removes the approximation indicator", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1.2 frac 4");
+    expect(formatStack(calc.stack, calc.display)).toBe("↓ 1 1/4");
+
+    processLine(calc, "rnd");
+
+    expect(calc.x.toString()).toBe("1.25");
+    expect(formatStack(calc.stack, calc.display)).toBe("1 1/4");
   });
 
   test("fraction display handles negative and improper values", () => {
@@ -910,7 +1056,10 @@ describe("RpnCalculator", () => {
     expect(formatStack(calc.stack, calc.display)).toBe("-1 1/4");
 
     processLine(calc, "2.99999999999999");
-    expect(formatStack(calc.stack, calc.display)).toBe("3");
+    expect(formatStack(calc.stack, calc.display)).toBe("↓ 3");
+
+    processLine(calc, "-0.0001 frac 4");
+    expect(formatStack(calc.stack, calc.display)).toBe("↑ 0");
   });
 
   test("decimal display modes turn fraction display off", () => {
@@ -952,10 +1101,26 @@ describe("RpnCalculator", () => {
     expect(formatStack(calc.stack, calc.display)).toBe("4.2000e-5");
   });
 
+  test("fixed display stays fixed when rounding produces a significant digit", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0.000062 fix 4");
+    expect(formatStack(calc.stack, calc.display)).toBe("0.0001");
+
+    processLine(calc, "rnd");
+    expect(calc.x.toString()).toBe("0.0001");
+    expect(calc.lastX.toString()).toBe("0.000062");
+  });
+
   test("fixed display falls back to scientific notation for values too wide for fixed", () => {
     const calc = new RpnCalculator();
     processLine(calc, "1234567890123 fix 2");
     expect(formatStack(calc.stack, calc.display)).toBe("1.23e+12");
+  });
+
+  test("fixed display checks width after rounding", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "999999999999.9 fix 0");
+    expect(formatStack(calc.stack, calc.display)).toBe("1e+12");
   });
 
   test("fixed display avoids materializing huge fixed-point strings", () => {

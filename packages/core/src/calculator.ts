@@ -178,10 +178,16 @@ export class CalculatorMachine {
 
   storeVariable(name: string): void {
     this.variables.set(normalizeVariableName(name), this.x);
+    this.liftEnabled = true;
   }
 
   recallVariable(name: string): void {
     this.pushNumber(this.variables.get(normalizeVariableName(name)) ?? ZERO);
+  }
+
+  changeSign(): void {
+    this.stack[3] = this.x.neg();
+    this.liftEnabled = true;
   }
 
   viewVariable(name: string): void {

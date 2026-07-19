@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+
+- Preserved the active display mode and maximum denominator when entering fractions.
+- Corrected HP-style FIX rounding, engineering significant-digit formatting, `STO` stack lift, `RND` and change-sign `LASTX` behavior, and the zero-base power domain.
+- Disabled `sqrt`, `exp`, `ln`, `^`, `pow`, and `1/x` in non-decimal base modes, matching the HP 32SII.
+- Enforced HP fraction-entry digit limits and added fraction-approximation direction indicators.
+- Made `ALL` select ordinary or scientific notation according to the HP 32SII's 12-digit display capacity.
+
 ## [0.4.0] - 2026-07-18
 
 ### Changed

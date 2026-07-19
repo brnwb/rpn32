@@ -2,7 +2,7 @@
 
 A terminal RPN calculator inspired by my favorite calculator, the HP 32SII. Written in TypeScript for Node.js.
 
-The calculator core uses a vendored copy of `decimal.js` instead of JavaScript binary floating point, which makes decimal calculator-style arithmetic behave more like an HP calculator without adding runtime npm dependencies. It also uses a fixed four-level HP-style stack, `T Z Y X`, with stack lift, `ENTER`, and `lastx` behavior. `lastx` is updated by numeric operations and preserved by stack/display/angle commands and invalid operations.
+The calculator core uses a vendored copy of `decimal.js` instead of JavaScript binary floating point, which makes decimal calculator-style arithmetic behave more like an HP calculator without adding runtime npm dependencies. It also uses a fixed four-level HP-style stack, `T Z Y X`, with stack lift, `ENTER`, and `lastx` behavior. `lastx` is updated by HP numeric functions and preserved by stack/display/angle commands, sign changes, and invalid operations.
 
 This is _inspired_ by the 32SII, but not a perfect emulation.
 
@@ -163,12 +163,17 @@ error: invalid operation (divide by zero)
 - Constants: `pi`, `e`
 - REPL: `help`, `quit`
 
-Base modes follow the HP 32SII's 36-bit, two's-complement integer model. Changing base changes display and input mode without truncating the stored decimal value, but arithmetic in `hex`, `oct`, and `bin` uses integer parts and returns integer results.
+Base modes follow the HP 32SII's 36-bit, two's-complement integer model. Changing base changes display and input mode without truncating the stored decimal value, but arithmetic in `hex`, `oct`, and `bin` uses integer parts and returns integer results. As on the HP 32SII, `sqrt`, `exp`, `ln`, `^`, `pow`, and `1/x` are unavailable outside decimal mode.
 
-Fraction input and display follow the HP 32SII model: `1..2` enters `1/2`, `1.1.2` enters `1 1/2`, `frac` toggles fraction display, `frac n` sets the maximum denominator up to 4095 and turns fraction display on, and decimal display modes turn fraction display off. The `fpart` command returns the fractional part of `X`.
+Fraction input and display follow the HP 32SII model: `1..2` enters `1/2`, `1.1.2` enters `1 1/2`, the integer and numerator accept 12 entered digits total, and the denominator accepts 4 entered digits. Fraction input preserves the current display mode and denominator, `frac` toggles fraction display, `frac n` sets the maximum denominator up to 4095 and turns fraction display on, and decimal display modes turn fraction display off. Inexact displayed fractions are prefixed with `↑` when the exact fractional magnitude is above the approximation or `↓` when it is below. The `fpart` command returns the fractional part of `X`.
 In fraction display, `rnd` changes `X` to the decimal value of the displayed fraction.
 
 A few convenience aliases are currently accepted: `dup`, `xy`, `pow`, `fact`, and `neg`.
+
+## Known HP 32SII differences
+
+- `!` accepts nonnegative integers only; unlike the HP 32SII, it does not evaluate non-integer inputs as `Γ(x + 1)`.
+- Base-mode arithmetic saturates at the signed 36-bit limits, but it does not emit the HP 32SII's momentary `OVERFLOW` warning.
 
 ## Project structure
 

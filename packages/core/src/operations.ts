@@ -26,8 +26,6 @@ export function binaryOperations(calc: CalculatorMachine): ReadonlyMap<string, B
           ["-", baseBinaryOp((a, b) => a - b)],
           ["*", baseBinaryOp((a, b) => a * b)],
           ["/", baseDivide],
-          ["^", power],
-          ["pow", power],
           ["mod", baseModulo],
         ];
   return new Map(entries);
@@ -84,8 +82,6 @@ export function unaryOperations(calc: CalculatorMachine): ReadonlyMap<string, Un
     ["fpart", (x) => x.minus(x.trunc())],
     ["floor", (x) => x.floor()],
     ["ceil", (x) => x.ceil()],
-    ["chs", (x) => x.neg()],
-    ["neg", (x) => x.neg()],
     [
       "1/x",
       (x) => {
@@ -97,6 +93,9 @@ export function unaryOperations(calc: CalculatorMachine): ReadonlyMap<string, Un
 }
 
 function power(a: Decimal, b: Decimal): Decimal {
+  if (a.isZero() && b.lte(0)) {
+    throw new RpnError("invalid operation (zero base requires a positive exponent)");
+  }
   if (b.isInteger()) {
     if (b.abs().gt(Number.MAX_SAFE_INTEGER))
       throw new RpnError("invalid operation (exponent out of range)");

@@ -22,7 +22,16 @@ export function parseFraction(token: string): NumberValue | undefined {
     numerator = "",
     denominator = "",
   ] = match;
-  const denominatorValue = new Decimal(mixedDenominator || denominator);
+  const integerDigits = mixedInteger.length;
+  const numeratorDigits = (mixedNumerator || numerator).length;
+  const denominatorDigits = mixedDenominator || denominator;
+  if (integerDigits + numeratorDigits > 12) {
+    throw new RpnError("fraction integer and numerator must not exceed 12 digits total");
+  }
+  if (denominatorDigits.length > 4) {
+    throw new RpnError("fraction denominator must not exceed 4 digits");
+  }
+  const denominatorValue = new Decimal(denominatorDigits);
   if (denominatorValue.isZero()) throw new RpnError("fraction denominator must not be zero");
   const magnitude = new Decimal(mixedInteger || 0).plus(
     new Decimal(mixedNumerator || numerator).div(denominatorValue),
