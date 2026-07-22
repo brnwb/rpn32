@@ -19,6 +19,10 @@ describe("CalculatorSession", () => {
     const session = new CalculatorSession();
     expect(session.handleLine("")).toEqual({ quit: false, lines: ["0"] });
     expect(session.handleLine("help")).toEqual({ quit: false, lines: [HELP] });
+    expect(HELP).toContain("% %chg");
+    expect(HELP).toContain("sto + A");
+    expect(HELP).toContain("rdown / rup");
+    expect(HELP).toContain("show");
     expect(session.handleLine("quit")).toEqual({ quit: true, lines: [] });
   });
 
@@ -33,6 +37,13 @@ describe("CalculatorSession", () => {
     const session = new CalculatorSession();
     expect(session.evaluate("3 2 +").lines).toEqual(["5"]);
     expect(session.evaluate("42 sto A 123 view A").lines).toEqual(["A: 42"]);
+    expect(session.evaluate("10 3 / fix 2 show").lines).toEqual(["3.33333333333"]);
+  });
+
+  test("prints SHOW before the normally formatted stack in the REPL", () => {
+    const session = new CalculatorSession();
+    expect(session.handleLine("10 3 / fix 2 show").lines).toEqual(["3.33333333333", "3.33"]);
+    expect(session.handleLine("255 enter hex show 1").lines).toEqual(["FF", "1"]);
   });
 
   test("orders REPL errors and messages before the stack", () => {

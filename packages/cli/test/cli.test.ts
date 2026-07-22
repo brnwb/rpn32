@@ -15,6 +15,8 @@ describe("rpn32 CLI", () => {
     expect(stdout).toContain("rpn32 '3 2 +'");
     expect(stdout).toContain("deg rad grad");
     expect(stdout).toContain("dec hex oct bin");
+    expect(stdout).toContain("% %chg");
+    expect(stdout).toContain("sto + A");
     expect(stderr).toBe("");
   });
 
@@ -100,6 +102,16 @@ describe("rpn32 CLI", () => {
     ]);
 
     expect(stdout).toBe("A: 42\n");
+    expect(stderr).toBe("");
+  });
+
+  test("SHOW prints full precision without changing the selected display format", async () => {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [
+      "packages/cli/dist/cli.js",
+      "10 3 / fix 2 show",
+    ]);
+
+    expect(stdout).toBe("3.33333333333\n");
     expect(stderr).toBe("");
   });
 

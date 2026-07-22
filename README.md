@@ -150,29 +150,34 @@ error: invalid operation (divide by zero)
 - Numbers push onto the stack
 - Fraction input: `n..d` for `n/d`, `i.n.d` for `i n/d`
 - Arithmetic: `+ - * / ^`
-- Math: `sqrt sq ! fact mod abs int fpart floor ceil rnd round`
-- Trig/log/exponential: `sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh ln log exp`
+- Percentage: `%`, `%chg` (both preserve the base value in `Y`)
+- Math: `sqrt sq xroot ! fact ncr npr mod abs int fpart floor ceil rnd round`
+- Trig/log/exponential: `sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh ln log exp 10^x`
 - Other numeric functions: `chs 1/x`
+- Coordinate conversion: `y x r>p` and `theta r p>r`
+- Time and angle conversion: `>hms`, `>hr`, `>rad`, `>deg`
+- Unit conversion: `>kg`, `>lb`, `>c`, `>f`, `>cm`, `>in`, `>l`, `>gal`
 - Angle modes: `deg`, `rad`, `grad`
 - Integer base modes: `dec`, `hex`, `oct`, `bin`
 - Variables: `sto A`, `rcl A`, `view A`, `vars` for variables `A` through `Z` and `i`
-- Stack: `enter`, `lastx`, `swap`, `drop`, `clx`, `clear`
+- Variable arithmetic: `sto + A`, `sto - A`, `sto * A`, `sto / A`, and the corresponding `rcl` forms
+- Variable exchange: `x<> A`
+- Stack: `enter`, `lastx`, `swap`, `rdown`, `rup`, `drop`, `clx`, `clear`
 - Clearing: `clear var`, `clear all`
-- Display modes: `fix n`, `sci n`, `eng n`, `frac`, `frac n`, `all`
+- Display modes: `fix n`, `sci n`, `eng n`, `frac`, `frac n`, `all`, `show`
 - Full stack display: `stack`, `stack off`
 - Constants: `pi`, `e`
 - REPL: `help`, `quit`
 
-Base modes follow the HP 32SII's 36-bit, two's-complement integer model. Changing base changes display and input mode without truncating the stored decimal value, but arithmetic in `hex`, `oct`, and `bin` uses integer parts and returns integer results. As on the HP 32SII, `sqrt`, `exp`, `ln`, `^`, `pow`, and `1/x` are unavailable outside decimal mode.
+Base modes follow the HP 32SII's 36-bit, two's-complement integer model. Changing base changes display and input mode without truncating the stored decimal value, but arithmetic in `hex`, `oct`, and `bin` uses integer parts and returns integer results. As on the HP 32SII, `sqrt`, `exp`, `10^x`, `alog`, `ln`, `^`, `pow`, `xroot`, and `1/x` are unavailable outside decimal mode.
 
 Fraction input and display follow the HP 32SII model: `1..2` enters `1/2`, `1.1.2` enters `1 1/2`, the integer and numerator accept 12 entered digits total, and the denominator accepts 4 entered digits. Fraction input preserves the current display mode and denominator, `frac` toggles fraction display, `frac n` sets the maximum denominator up to 4095 and turns fraction display on, and decimal display modes turn fraction display off. Inexact displayed fractions are prefixed with `↑` when the exact fractional magnitude is above the approximation or `↓` when it is below. The `fpart` command returns the fractional part of `X`.
 In fraction display, `rnd` changes `X` to the decimal value of the displayed fraction.
 
-A few convenience aliases are currently accepted: `dup`, `xy`, `pow`, `fact`, and `neg`.
+A few convenience aliases are currently accepted: `dup`, `xy`, `rdn`, `pow`, `alog`, `fact`, `pct`, `pctchg`, and `neg`.
 
 ## Known HP 32SII differences
 
-- `!` accepts nonnegative integers only; unlike the HP 32SII, it does not evaluate non-integer inputs as `Γ(x + 1)`.
 - Base-mode arithmetic saturates at the signed 36-bit limits, but it does not emit the HP 32SII's momentary `OVERFLOW` warning.
 
 ## Project structure

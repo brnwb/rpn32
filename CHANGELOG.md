@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Added HP-style percentages, common exponential and X-root operations, gamma-complete factorials, combinations, permutations, coordinate/time/angle/unit conversions, stack roll, and transient full-precision `SHOW` output.
+- Added storage arithmetic, recall arithmetic, and X-variable exchange for variables A through Z and i.
+
 ### Fixed
 
 - Preserved the active display mode and maximum denominator when entering fractions.

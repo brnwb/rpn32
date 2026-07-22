@@ -3,6 +3,7 @@ import {
   BaseMode,
   RpnCalculator,
   RpnError,
+  formatNumber,
   formatStack,
   type OutputEvent,
 } from "@brnwb/rpn32-core";
@@ -20,16 +21,25 @@ REPL commands:
   numbers         push values onto the stack, e.g. 3 2 +
   fractions       enter n/d as n..d or i n/d as i.n.d
   + - * / ^       arithmetic
-  sqrt sq ! fact mod abs int fpart floor ceil rnd round
+  % %chg          percent and percent change (preserve Y)
+  sqrt sq xroot 10^x ! fact ncr npr mod abs int fpart floor ceil rnd round
   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh
   ln log exp chs 1/x
+  r>p p>r         rectangular/polar coordinate conversion
+  >hms >hr        decimal and hours-minutes-seconds conversion
+  >rad >deg       convert angle units without changing angle mode
+  >kg >lb >c >f >cm >in >l >gal
   deg rad grad    set trigonometry angle mode
   dec hex oct bin set integer base mode for input and display
   enter           duplicate X with HP-style ENTER behavior
   lastx           recall the previous X value
   sto A / rcl A   store or recall variables A through Z and i
+  sto + A         apply +, -, *, or / to a stored variable
+  rcl + A         apply +, -, *, or / to X using a variable
+  x<> A           exchange X with a variable
   view A / vars   view one variable or list stored variables
   swap            swap X and Y
+  rdown / rup     rotate the four-level stack
   drop clx        drop/clear X
   clear           clear the stack
   clear var       clear all variables
@@ -39,6 +49,7 @@ REPL commands:
   eng n           show engineering notation with n digits after the first significant digit
   frac [n]        toggle fraction display, or set max denominator n
   all             show compact 12-digit display
+  show            show all 12 significant digits without changing display mode
   stack           show all stack registers after each entry
   stack off       return to compact display
   help            show this help
@@ -106,6 +117,7 @@ export class CalculatorSession {
 
 function renderOutput(output: OutputEvent): string {
   if (output.type === "empty-variables") return "no variables";
+  if (output.type === "show") return formatNumber(output.value, undefined, output.baseMode);
   const name = output.name === "i" ? output.name : output.name.toUpperCase();
   return `${name}: ${output.value.toString()}`;
 }

@@ -12,9 +12,27 @@ import {
 import { parseBaseInteger } from "./base.js";
 import { parseFraction } from "./fraction.js";
 import { roundToDisplay } from "./display.js";
-import { binaryOperations, unaryOperations } from "./operations.js";
+import {
+  binaryOperations,
+  percent,
+  percentChange,
+  polarToRectangular,
+  rectangularToPolar,
+  unaryOperations,
+} from "./operations.js";
 
-const DECIMAL_ONLY_OPERATIONS = new Set(["sqrt", "exp", "ln", "^", "pow", "1/x"]);
+const DECIMAL_ONLY_OPERATIONS = new Set([
+  "sqrt",
+  "exp",
+  "10^x",
+  "alog",
+  "ln",
+  "^",
+  "pow",
+  "xroot",
+  "1/x",
+]);
+const VARIABLE_ARITHMETIC_OPERATORS = new Set(["+", "-", "*", "/"]);
 
 export function processLine(calc: CalculatorMachine, line: string): void {
   processTokens(calc, line.split(/\s+/).filter(Boolean));
@@ -41,9 +59,24 @@ export function processTokens(calc: CalculatorMachine, tokens: Iterable<string>)
     } else if (token === "sto" || token === "rcl" || token === "view") {
       const next = list[i + 1];
       if (next === undefined) throw new RpnError(`${token} requires a variable name`);
-      if (token === "sto") calc.storeVariable(next);
-      else if (token === "rcl") calc.recallVariable(next);
-      else calc.viewVariable(next);
+      if ((token === "sto" || token === "rcl") && VARIABLE_ARITHMETIC_OPERATORS.has(next)) {
+        const name = list[i + 2];
+        if (name === undefined) throw new RpnError(`${token} ${next} requires a variable name`);
+        const operation = binaryOperations(calc).get(next);
+        if (operation === undefined) throw new RpnError(`unsupported variable arithmetic: ${next}`);
+        if (token === "sto") calc.storeVariableArithmetic(name, operation);
+        else calc.recallVariableArithmetic(name, operation);
+        i += 3;
+      } else {
+        if (token === "sto") calc.storeVariable(next);
+        else if (token === "rcl") calc.recallVariable(next);
+        else calc.viewVariable(next);
+        i += 2;
+      }
+    } else if (token === "x<>") {
+      const next = list[i + 1];
+      if (next === undefined) throw new RpnError("x<> requires a variable name");
+      calc.exchangeVariable(next);
       i += 2;
     } else if (token === "clear" && list[i + 1]?.trim().toLowerCase() === "var") {
       calc.clearVariables();
@@ -106,6 +139,13 @@ export function processToken(calc: CalculatorMachine, token: string): void {
     case "xy":
       calc.swap();
       return;
+    case "rdown":
+    case "rdn":
+      calc.rollDown();
+      return;
+    case "rup":
+      calc.rollUp();
+      return;
     case "clear":
       calc.clear();
       return;
@@ -117,6 +157,23 @@ export function processToken(calc: CalculatorMachine, token: string): void {
       return;
     case "vars":
       calc.listVariables();
+      return;
+    case "show":
+      calc.show();
+      return;
+    case "%":
+    case "pct":
+      calc.applyBinaryPreservingY(percent);
+      return;
+    case "%chg":
+    case "pctchg":
+      calc.applyBinaryPreservingY(percentChange);
+      return;
+    case "r>p":
+      calc.applyPair(rectangularToPolar(calc));
+      return;
+    case "p>r":
+      calc.applyPair(polarToRectangular(calc));
       return;
     case "deg":
       calc.setAngleMode(AngleMode.Deg);

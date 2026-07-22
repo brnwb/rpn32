@@ -52,7 +52,9 @@ class RpnCalculator extends PublicRpnCalculator {
     return this.outputs.map((output) =>
       output.type === "empty-variables"
         ? "no variables"
-        : `${output.name === "i" ? output.name : output.name.toUpperCase()}: ${output.value.toString()}`,
+        : output.type === "show"
+          ? formatNumber(output.value, undefined, output.baseMode)
+          : `${output.name === "i" ? output.name : output.name.toUpperCase()}: ${output.value.toString()}`,
     );
   }
   takeMessages(): string[] {
@@ -129,6 +131,35 @@ describe("RpnCalculator", () => {
     expect(empty.outputs).toEqual([{ type: "empty-variables" }]);
   });
 
+  test("show emits a detached full-precision value without changing the display mode", () => {
+    const calc = new PublicRpnCalculator();
+    const result = calc.execute("10 3 / fix 2 show");
+
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0]).toMatchObject({ type: "show", baseMode: BaseMode.Dec });
+    expect(result.state.display.mode).toBe(DisplayMode.Fix);
+    expect(formatStack(result.state.stack, result.state.display)).toBe("3.33");
+    if (result.outputs[0]?.type === "show") {
+      expect(formatNumber(result.outputs[0].value)).toBe("3.33333333333");
+      result.outputs[0].value.d[0] = 99;
+    }
+    expect(calc.state.stack[3].toString()).toBe("3.33333333333333");
+  });
+
+  test("show captures the active base and preserves disabled stack lift", () => {
+    const calc = new PublicRpnCalculator();
+    const result = calc.execute("255 enter hex show 1");
+
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0]).toMatchObject({ type: "show", baseMode: BaseMode.Hex });
+    if (result.outputs[0]?.type === "show") {
+      expect(formatNumber(result.outputs[0].value, undefined, result.outputs[0].baseMode)).toBe(
+        "FF",
+      );
+    }
+    expect(result.state.stack.map((value) => value.toString())).toEqual(["0", "0", "255", "1"]);
+  });
+
   test("execution results remain detached from later executions", () => {
     const calc = new PublicRpnCalculator();
     const first = calc.execute("1");
@@ -189,6 +220,28 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     processLine(calc, "1 2 3 4 +");
     expectStack(calc, [d(1), d(1), d(2), d(7)]);
+  });
+
+  test("roll down and roll up rotate all four stack registers", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 2 3 4 rdown");
+    expectStack(calc, [d(4), d(1), d(2), d(3)]);
+
+    processLine(calc, "rup");
+    expectStack(calc, [d(1), d(2), d(3), d(4)]);
+
+    processLine(calc, "rdn");
+    expectStack(calc, [d(4), d(1), d(2), d(3)]);
+  });
+
+  test("roll down and roll up enable stack lift", () => {
+    const down = new RpnCalculator();
+    processLine(down, "1 2 3 4 enter rdown 5");
+    expectStack(down, [d(2), d(3), d(4), d(5)]);
+
+    const up = new RpnCalculator();
+    processLine(up, "1 2 3 4 enter rup 5");
+    expectStack(up, [d(4), d(4), d(2), d(5)]);
   });
 
   test("number after binary operation lifts result", () => {
@@ -270,6 +323,56 @@ describe("RpnCalculator", () => {
     const calc = new RpnCalculator();
     processLine(calc, "7 rcl C");
     expectStack(calc, [ZERO, ZERO, d(7), ZERO]);
+  });
+
+  test("storage arithmetic updates a variable without changing the stack or lastx", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "8 2 / 20 sto A 3 sto + A sto * A sto - A sto / A");
+
+    expect(calc.variables.get("a")?.toString()).toBe("22");
+    expectStack(calc, [ZERO, d(4), d(20), d(3)]);
+    expect(calc.lastX.toString()).toBe("2");
+  });
+
+  test.each([
+    ["+", "14"],
+    ["-", "6"],
+    ["*", "40"],
+    ["/", "2.5"],
+  ])("recall arithmetic %s changes only X and saves the previous X", (operator, expected) => {
+    const calc = new RpnCalculator();
+    processLine(calc, `4 sto A 1 2 10 rcl ${operator} A`);
+
+    expectStack(calc, [d(4), d(1), d(2), d(expected)]);
+    expect(calc.lastX.toString()).toBe("10");
+    expect(calc.variables.get("a")?.toString()).toBe("4");
+  });
+
+  test("X-variable exchange leaves Y, Z, and T unchanged", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "12 sto A 1 2 3 x<> A");
+
+    expectStack(calc, [d(12), d(1), d(2), d(12)]);
+    expect(calc.variables.get("a")?.toString()).toBe("3");
+  });
+
+  test("X-variable exchange enables stack lift", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "9 sto A 1 2 3 4 enter x<> A 5");
+
+    expectStack(calc, [d(3), d(4), d(9), d(5)]);
+    expect(calc.variables.get("a")?.toString()).toBe("4");
+  });
+
+  test("invalid variable arithmetic rolls back the whole expression", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "10 sto A 7");
+    const before = calc.state;
+
+    expect(() => processLine(calc, "0 sto / A")).toThrow("divide by zero");
+    expect(calc.state).toEqual(before);
+    expect(() => processLine(calc, "sto +")).toThrow("sto + requires a variable name");
+    expect(calc.state).toEqual(before);
   });
 
   test("variable names are case-insensitive and include i", () => {
@@ -486,11 +589,56 @@ describe("RpnCalculator", () => {
     processLine(calc, "9 hex");
     const stack = [...calc.stack];
 
-    for (const operation of ["sqrt", "exp", "ln", "^", "pow", "1/x"]) {
+    for (const operation of ["sqrt", "exp", "10^x", "alog", "ln", "^", "pow", "xroot", "1/x"]) {
       expect(() => processLine(calc, operation)).toThrow(`${operation} is unavailable in hex mode`);
       expectStack(calc, stack);
       expect(calc.baseMode).toBe(BaseMode.Hex);
     }
+  });
+
+  test("probability functions truncate operands in non-decimal modes", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "5.9 2.9 hex ncr");
+    expect(calc.x.toString()).toBe("10");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("A");
+
+    processLine(calc, "dec 5.9 2.9 oct npr");
+    expect(calc.x.toString()).toBe("20");
+    expect(formatStack(calc.stack, calc.display, { baseMode: calc.baseMode })).toBe("24");
+  });
+
+  test("probability functions validate truncated base-mode operands", () => {
+    const negative = new RpnCalculator();
+    processLine(negative, "-5.9 2 hex");
+    const negativeState = negative.state;
+    expect(() => processLine(negative, "ncr")).toThrow("probability operands require");
+    expect(negative.state).toEqual(negativeState);
+
+    const reversed = new RpnCalculator();
+    processLine(reversed, "3.9 4.1 bin");
+    const reversedState = reversed.state;
+    expect(() => processLine(reversed, "ncr")).toThrow("probability operands require");
+    expect(reversed.state).toEqual(reversedState);
+  });
+
+  test("base-mode probability results remain decimal values instead of clamping to 36 bits", () => {
+    const tooBig = new RpnCalculator();
+    processLine(tooBig, "40 20 hex ncr");
+    expect(tooBig.x.toString()).toBe("137846528820");
+    expect(formatStack(tooBig.stack, tooBig.display, { baseMode: tooBig.baseMode })).toBe(
+      "Too Big",
+    );
+    processLine(tooBig, "dec");
+    expect(formatStack(tooBig.stack, tooBig.display, { baseMode: tooBig.baseMode })).toBe(
+      "137846528820",
+    );
+
+    const representable = new RpnCalculator();
+    processLine(representable, "36 18 hex ncr");
+    expect(representable.x.toString()).toBe("9075135300");
+    expect(
+      formatStack(representable.stack, representable.display, { baseMode: representable.baseMode }),
+    ).toBe("21CEB9344");
   });
 
   test("base mode arithmetic clamps 36-bit overflow", () => {
@@ -626,6 +774,176 @@ describe("RpnCalculator", () => {
     expect(calc.x.eq(720)).toBe(true);
   });
 
+  test("factorial evaluates non-integers as gamma of X plus one", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "2.5 !");
+    expect(calc.x.toNumber()).toBeCloseTo(3.32335097044784, 12);
+
+    processLine(calc, "-0.5 !");
+    expect(calc.x.toNumber()).toBeCloseTo(Math.sqrt(Math.PI), 12);
+  });
+
+  test("common exponential and X root", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "3 10^x 27 3 xroot -27 3 xroot");
+    expectStack(calc, [d(1000), d(1000), d(3), d(-3)]);
+  });
+
+  test("X root rejects invalid real roots without changing the stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "-16 2");
+    const before = calc.state;
+    expect(() => processLine(calc, "xroot")).toThrow(
+      "negative radicand requires an odd integer root",
+    );
+    expect(calc.state).toEqual(before);
+  });
+
+  test("percentage functions preserve Y and save X in lastx", () => {
+    const percent = new RpnCalculator();
+    processLine(percent, "1 2 15.76 6 %");
+    expectStack(percent, [d(1), d(2), d("15.76"), d("0.9456")]);
+    expect(percent.lastX.toString()).toBe("6");
+    processLine(percent, "+");
+    expect(percent.x.toString()).toBe("16.7056");
+
+    const change = new RpnCalculator();
+    processLine(change, "16.12 15.76 %chg");
+    expect(change.y.toString()).toBe("16.12");
+    expect(change.x.toNumber()).toBeCloseTo(-2.23325062035, 11);
+    expect(change.lastX.toString()).toBe("15.76");
+  });
+
+  test("percentage change rejects a zero base without changing the stack", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0 5");
+    const before = calc.state;
+    expect(() => processLine(calc, "%chg")).toThrow("percent change requires a nonzero base");
+    expect(calc.state).toEqual(before);
+  });
+
+  test("combinations and permutations use n in Y and r in X", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "28 4 ncr 28 4 npr");
+    expectStack(calc, [ZERO, ZERO, d(20475), d(491400)]);
+    expect(calc.lastX.toString()).toBe("4");
+  });
+
+  test("probability functions stop when results exceed the HP numeric range", () => {
+    const combinations = new RpnCalculator();
+    processLine(combinations, "999999999999 499999999999");
+    expect(() => processLine(combinations, "ncr")).toThrow("invalid operation (overflow)");
+
+    const permutations = new RpnCalculator();
+    processLine(permutations, "999999999999 499999999999");
+    expect(() => processLine(permutations, "npr")).toThrow("invalid operation (overflow)");
+  });
+
+  test("probability functions reject n at the HP domain limit", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1000000000000 0");
+    const before = calc.state;
+    expect(() => processLine(calc, "ncr")).toThrow("probability operands are out of range");
+    expect(calc.state).toEqual(before);
+  });
+
+  test("coordinate conversions replace the Y-X pair and honor angle mode", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "1 2 3 4 r>p");
+    expect(calc.t.toString()).toBe("1");
+    expect(calc.z.toString()).toBe("2");
+    expect(calc.y.toNumber()).toBeCloseTo(36.869897645844, 11);
+    expect(calc.x.toString()).toBe("5");
+    expect(calc.lastX.toString()).toBe("4");
+
+    processLine(calc, "p>r");
+    expect(calc.y.toNumber()).toBeCloseTo(3, 12);
+    expect(calc.x.toNumber()).toBeCloseTo(4, 12);
+  });
+
+  test("coordinate conversions honor radians and gradians", () => {
+    const radians = new RpnCalculator();
+    processLine(radians, "rad 4 3 r>p");
+    expect(radians.y.toNumber()).toBeCloseTo(0.927295218001612, 12);
+    expect(radians.x.toString()).toBe("5");
+
+    const gradians = new RpnCalculator();
+    processLine(gradians, "grad 4 3 r>p");
+    expect(gradians.y.toNumber()).toBeCloseTo(59.033447060173, 11);
+    expect(gradians.x.toString()).toBe("5");
+
+    const polarRadians = new RpnCalculator();
+    processLine(polarRadians, "rad pi 6 / 10 p>r");
+    expect(polarRadians.y.toNumber()).toBeCloseTo(5, 12);
+    expect(polarRadians.x.toNumber()).toBeCloseTo(8.66025403784439, 12);
+
+    const polarGradians = new RpnCalculator();
+    processLine(polarGradians, "grad 33.3333333333333 10 p>r");
+    expect(polarGradians.y.toNumber()).toBeCloseTo(5, 12);
+    expect(polarGradians.x.toNumber()).toBeCloseTo(8.66025403784439, 12);
+  });
+
+  test("polar conversion returns exact degree and gradian quadrant results", () => {
+    const degrees = new RpnCalculator();
+    processLine(degrees, "90 1 p>r");
+    expect(degrees.y.toString()).toBe("1");
+    expect(degrees.x.toString()).toBe("0");
+
+    const gradians = new RpnCalculator();
+    processLine(gradians, "grad 100 1 p>r");
+    expect(gradians.y.toString()).toBe("1");
+    expect(gradians.x.toString()).toBe("0");
+  });
+
+  test("time, angle, and unit conversions follow HP command direction", () => {
+    const time = new RpnCalculator();
+    processLine(time, "1 7 / >hms >hr");
+    expect(time.x.toNumber()).toBeCloseTo(1 / 7, 12);
+
+    const angle = new RpnCalculator();
+    processLine(angle, "180 >rad >deg");
+    expect(angle.x.toNumber()).toBeCloseTo(180, 12);
+
+    const conversions: [string, number, number][] = [
+      ["1 >kg", 0.45359237, 12],
+      ["1 >lb", 2.20462262184878, 12],
+      ["32 >c", 0, 12],
+      ["100 >f", 212, 12],
+      ["1 >cm", 2.54, 12],
+      ["2.54 >in", 1, 12],
+      ["1 >l", 3.785411784, 12],
+      ["3.785411784 >gal", 1, 12],
+    ];
+    for (const [expression, expected, precision] of conversions) {
+      const calc = new RpnCalculator();
+      processLine(calc, expression);
+      expect(calc.x.toNumber()).toBeCloseTo(expected, precision);
+    }
+  });
+
+  test("HMS conversion normalizes values at internal calculator precision", () => {
+    const calc = new RpnCalculator();
+    processLine(calc, "0.9999999999999999 >hms");
+    expect(calc.x.toString()).toBe("1");
+  });
+
+  test("hours conversion decodes and carries packed minute and second fields", () => {
+    const conversions: [string, number][] = [
+      ["1.3045 >hr", 1.5125],
+      ["1.59 >hr", 1.98333333333333],
+      ["1.6 >hr", 2],
+      ["1.006 >hr", 1.01666666666667],
+      ["1.99 >hr", 2.65],
+      ["-1.99 >hr", -2.65],
+      ["0.9999 >hr", 1.6775],
+    ];
+    for (const [expression, expected] of conversions) {
+      const calc = new RpnCalculator();
+      processLine(calc, expression);
+      expect(calc.x.toNumber()).toBeCloseTo(expected, 12);
+    }
+  });
+
   test("modulo", () => {
     const calc = new RpnCalculator();
     processLine(calc, "17 5 mod");
@@ -727,23 +1045,19 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("12.35");
   });
 
-  test("factorial rejects non-integers", () => {
-    const calc = new RpnCalculator();
-    processLine(calc, "2.5");
-    expect(() => processLine(calc, "!")).toThrow("factorial requires an integer from 0 to 253");
-  });
-
   test("factorial rejects negative integers", () => {
     const calc = new RpnCalculator();
     processLine(calc, "-1");
-    expect(() => processLine(calc, "!")).toThrow("factorial requires an integer from 0 to 253");
+    expect(() => processLine(calc, "!")).toThrow(
+      "factorial or gamma is undefined for negative integers",
+    );
     expectStack(calc, [ZERO, ZERO, ZERO, d(-1)]);
   });
 
   test("factorial rejects values above the HP 32SII range", () => {
     const calc = new RpnCalculator();
     processLine(calc, "254");
-    expect(() => processLine(calc, "!")).toThrow("factorial requires an integer from 0 to 253");
+    expect(() => processLine(calc, "!")).toThrow("factorial or gamma input is out of range");
     expectStack(calc, [ZERO, ZERO, ZERO, d(254)]);
   });
 

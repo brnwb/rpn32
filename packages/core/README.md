@@ -19,4 +19,5 @@ console.log(formatStack(state.stack, state.display)); // 5
 `execute()` applies a whole expression atomically and returns structured output events plus a detached,
 read-only state snapshot. Failed expressions throw `RpnError` without changing calculator state. The public
 state includes the four-level stack, `lastX`, display settings, angle and base modes, and a read-only copy of
-the variables map.
+the variables map. `view`, `vars`, and `show` return typed output events so callers can choose their own
+presentation.

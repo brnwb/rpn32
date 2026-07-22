@@ -15,6 +15,7 @@ export type NumberValue = Decimal;
 export type RpnStack = [NumberValue, NumberValue, NumberValue, NumberValue];
 export type UnaryOp = (x: NumberValue) => NumberValue;
 export type BinaryOp = (a: NumberValue, b: NumberValue) => NumberValue;
+export type PairOp = (y: NumberValue, x: NumberValue) => [NumberValue, NumberValue];
 
 export const PI = new Decimal("3.14159265358979");
 export const E = new Decimal("2.71828182845905");
@@ -90,7 +91,13 @@ export interface EmptyVariablesOutput {
   readonly type: "empty-variables";
 }
 
-export type OutputEvent = VariableOutput | EmptyVariablesOutput;
+export interface ShowOutput {
+  readonly type: "show";
+  readonly value: NumberValue;
+  readonly baseMode: BaseMode;
+}
+
+export type OutputEvent = VariableOutput | EmptyVariablesOutput | ShowOutput;
 
 /** Mutable command target. Internal to the package; not exported from the package root. */
 export class CalculatorMachine {
@@ -157,6 +164,18 @@ export class CalculatorMachine {
     this.liftEnabled = true;
   }
 
+  rollDown(): void {
+    const [t, z, y, x] = this.stack;
+    this.stack = [x, t, z, y];
+    this.liftEnabled = true;
+  }
+
+  rollUp(): void {
+    const [t, z, y, x] = this.stack;
+    this.stack = [z, y, x, t];
+    this.liftEnabled = true;
+  }
+
   clear(): void {
     this.stack = [ZERO, ZERO, ZERO, ZERO];
     this.liftEnabled = true;
@@ -181,8 +200,33 @@ export class CalculatorMachine {
     this.liftEnabled = true;
   }
 
+  storeVariableArithmetic(name: string, op: BinaryOp): void {
+    const normalized = normalizeVariableName(name);
+    const current = this.variables.get(normalized) ?? ZERO;
+    this.variables.set(
+      normalized,
+      evaluateOperation(() => op(current, this.x)),
+    );
+    this.liftEnabled = true;
+  }
+
   recallVariable(name: string): void {
     this.pushNumber(this.variables.get(normalizeVariableName(name)) ?? ZERO);
+  }
+
+  recallVariableArithmetic(name: string, op: BinaryOp): void {
+    const value = this.variables.get(normalizeVariableName(name)) ?? ZERO;
+    this.lastX = this.x;
+    this.stack[3] = evaluateOperation(() => op(this.x, value));
+    this.liftEnabled = true;
+  }
+
+  exchangeVariable(name: string): void {
+    const normalized = normalizeVariableName(name);
+    const value = this.variables.get(normalized) ?? ZERO;
+    this.variables.set(normalized, this.x);
+    this.stack[3] = value;
+    this.liftEnabled = true;
   }
 
   changeSign(): void {
@@ -210,6 +254,10 @@ export class CalculatorMachine {
         value: this.variables.get(name) ?? ZERO,
       });
     }
+  }
+
+  show(): void {
+    this.outputs.push({ type: "show", value: this.x, baseMode: this.baseMode });
   }
 
   setDisplayMode(mode: DisplayMode, digits: number): void {
@@ -261,29 +309,37 @@ export class CalculatorMachine {
 
   applyUnary(op: UnaryOp): void {
     this.lastX = this.x;
-    let result: NumberValue;
-    try {
-      result = op(this.x);
-    } catch (error) {
-      throw normalizeMathError(error);
-    }
-    if (!result.isFinite()) throw new RpnError(nonFiniteResultMessage(result));
-    this.stack[3] = result;
+    this.stack[3] = evaluateOperation(() => op(this.x));
     this.liftEnabled = true;
   }
 
   applyBinary(op: BinaryOp): void {
     this.lastX = this.x;
-    let result: NumberValue;
+    this.stack[3] = evaluateOperation(() => op(this.y, this.x));
+    this.stack[2] = this.stack[1];
+    this.stack[1] = this.stack[0];
+    this.liftEnabled = true;
+  }
+
+  applyBinaryPreservingY(op: BinaryOp): void {
+    this.lastX = this.x;
+    this.stack[3] = evaluateOperation(() => op(this.y, this.x));
+    this.liftEnabled = true;
+  }
+
+  applyPair(op: PairOp): void {
+    this.lastX = this.x;
+    let result: [NumberValue, NumberValue];
     try {
       result = op(this.y, this.x);
     } catch (error) {
       throw normalizeMathError(error);
     }
-    if (!result.isFinite()) throw new RpnError(nonFiniteResultMessage(result));
-    this.stack[3] = result;
-    this.stack[2] = this.stack[1];
-    this.stack[1] = this.stack[0];
+    const [y, x] = result;
+    if (!y.isFinite()) throw new RpnError(nonFiniteResultMessage(y));
+    if (!x.isFinite()) throw new RpnError(nonFiniteResultMessage(x));
+    this.stack[2] = y;
+    this.stack[3] = x;
     this.liftEnabled = true;
   }
 
@@ -336,6 +392,17 @@ function sortVariableNames(names: string[]): string[] {
 function nonFiniteResultMessage(result: NumberValue): string {
   if (!result.isNaN()) return "invalid operation (overflow)";
   return "invalid operation";
+}
+
+function evaluateOperation(op: () => NumberValue): NumberValue {
+  let result: NumberValue;
+  try {
+    result = op();
+  } catch (error) {
+    throw normalizeMathError(error);
+  }
+  if (!result.isFinite()) throw new RpnError(nonFiniteResultMessage(result));
+  return result;
 }
 
 function normalizeMathError(error: unknown): unknown {
