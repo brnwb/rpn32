@@ -26,7 +26,7 @@ describe("rpn32 CLI", () => {
       flag,
     ]);
 
-    expect(stdout).toBe("0.4.0\n");
+    expect(stdout).toBe("0.5.0\n");
     expect(stderr).toBe("");
   });
 
