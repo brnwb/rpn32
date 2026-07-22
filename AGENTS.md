@@ -27,6 +27,7 @@ Run from the repository root:
 - Keep calculator behavior in `packages/core`.
 - Keep terminal/readline behavior in `packages/cli`.
 - Add or update tests for calculator behavior changes.
+- For numerical operations implemented locally because decimal.js lacks them, use an independent oracle appropriate to the algorithm: independently generated high-precision references for approximations, and independently known exact values for exact algorithms. Cover every implementation branch, representative signs and magnitudes, both sides of domain boundaries and poles or singularities, and relevant overflow or underflow thresholds. Identity and recurrence tests are supplemental and must not replace independent oracle values.
 - Preserve four-level HP-style stack behavior: `T Z Y X`.
 - Preserve HP-style stack lift and `ENTER` behavior.
 - Preserve HP-style base mode behavior: `dec`, `hex`, `oct`, and `bin`; 36-bit two's-complement integer display in non-decimal modes; decimal values keep fractional parts across base changes; non-decimal arithmetic uses integer parts and returns integer results.

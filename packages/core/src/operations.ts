@@ -16,18 +16,26 @@ const ONE_HUNDRED = new Decimal(100);
 const POUNDS_PER_KILOGRAM = new Decimal("2.20462262184878");
 const CENTIMETERS_PER_INCH = new Decimal("2.54");
 const LITERS_PER_GALLON = new Decimal("3.785411784");
+const GammaDecimal = Decimal.clone({
+  precision: INTERNAL_PRECISION + 15,
+  rounding: Decimal.ROUND_HALF_UP,
+});
+const GAMMA_PI = new GammaDecimal("3.1415926535897932384626433832795028841971693993751");
 const LANCZOS_COEFFICIENTS = [
-  "0.99999999999981",
-  "676.520368121886",
-  "-1259.1392167224",
-  "771.323428777653",
-  "-176.615029162141",
-  "12.5073432786869",
-  "-0.13857109526572",
-  "0.00000998436957801957",
-  "0.000000150563273514932",
-].map((value) => new Decimal(value));
-const SQRT_TWO_PI = new Decimal("2.506628274631");
+  "0.99999999999980993",
+  "676.5203681218851",
+  "-1259.1392167224028",
+  "771.32342877765313",
+  "-176.61502916214059",
+  "12.507343278686905",
+  "-0.13857109526572012",
+  "0.0000099843695780195716",
+  "0.00000015056327351493116",
+].map((value) => new GammaDecimal(value));
+const SQRT_TWO_PI = new GammaDecimal("2.5066282746310005024157652848110452530069867406099");
+const LN_TEN = GammaDecimal.ln(10);
+const MIN_FACTORIAL_LOG_MAGNITUDE = LN_TEN.times(-499);
+const MAX_FACTORIAL_LOG_MAGNITUDE = GammaDecimal.ln("9.99999999999e499");
 
 export function binaryOperations(calc: CalculatorMachine): ReadonlyMap<string, BinaryOp> {
   const entries: [string, BinaryOp][] =
@@ -188,27 +196,66 @@ function factorial(x: Decimal): Decimal {
     throw new RpnError("factorial or gamma is undefined for negative integers");
   }
   if (x.gt(253)) throw new RpnError("factorial or gamma input is out of range");
-  if (!x.isInteger()) return gamma(x.plus(1));
+  if (!x.isInteger()) {
+    const result = gammaFactorial(x);
+    if (!result.isFinite() || result.e > 499) throw new RpnError("invalid operation (overflow)");
+    return result.isZero() || result.e >= -499 ? result : new Decimal(0);
+  }
 
   let value = new Decimal(1);
   for (let n = 2; n <= x.toNumber(); n++) value = value.times(n);
   return value;
 }
 
-function gamma(value: Decimal): Decimal {
-  if (value.lt("0.5")) {
-    return PI.div(Decimal.sin(PI.times(value)).times(gamma(new Decimal(1).minus(value))));
+function gammaFactorial(x: Decimal): Decimal {
+  const value = new GammaDecimal(x);
+  if (value.lt("-0.5")) {
+    const sine = sinPi(value);
+    const logMagnitude = GAMMA_PI.ln().minus(sine.abs().ln()).minus(logGamma(value.neg()));
+    if (logMagnitude.lt(MIN_FACTORIAL_LOG_MAGNITUDE)) return new Decimal(0);
+    if (logMagnitude.gt(MAX_FACTORIAL_LOG_MAGNITUDE)) {
+      throw new RpnError("invalid operation (overflow)");
+    }
+    const magnitude = GammaDecimal.exp(logMagnitude);
+    return gammaResult(sine.isNegative() ? magnitude : magnitude.neg());
   }
+  return gammaResult(gamma(value.plus(1)));
+}
 
+function gamma(value: Decimal): Decimal {
+  const { shifted, series, base } = lanczos(value);
+  return SQRT_TWO_PI.times(base.pow(shifted.plus("0.5")))
+    .times(GammaDecimal.exp(base.neg()))
+    .times(series);
+}
+
+function logGamma(value: Decimal): Decimal {
+  const { shifted, series, base } = lanczos(value);
+  return SQRT_TWO_PI.ln()
+    .plus(base.ln().times(shifted.plus("0.5")))
+    .minus(base)
+    .plus(series.ln());
+}
+
+function lanczos(value: Decimal): { shifted: Decimal; series: Decimal; base: Decimal } {
   const shifted = value.minus(1);
   let series = LANCZOS_COEFFICIENTS[0] ?? new Decimal(0);
   for (let index = 1; index < LANCZOS_COEFFICIENTS.length; index++) {
     series = series.plus((LANCZOS_COEFFICIENTS[index] ?? new Decimal(0)).div(shifted.plus(index)));
   }
   const base = shifted.plus("7.5");
-  return SQRT_TWO_PI.times(base.pow(shifted.plus("0.5")))
-    .times(Decimal.exp(base.neg()))
-    .times(series);
+  return { shifted, series, base };
+}
+
+function sinPi(value: Decimal): Decimal {
+  const nearestInteger = value.round();
+  const reduced = value.minus(nearestInteger);
+  const sine = GammaDecimal.sin(GAMMA_PI.times(reduced));
+  return nearestInteger.abs().mod(2).isZero() ? sine : sine.neg();
+}
+
+function gammaResult(value: Decimal): Decimal {
+  return new Decimal(value.toSignificantDigits(INTERNAL_PRECISION));
 }
 
 function combinations(n: Decimal, r: Decimal): Decimal {

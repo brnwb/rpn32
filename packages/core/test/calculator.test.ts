@@ -74,6 +74,16 @@ const expectStack = (calc: RpnCalculator, expected: Decimal[]): void => {
   );
 };
 
+const expectRelativeErrorAtMost = (
+  actual: Decimal,
+  expected: string,
+  tolerance = "5e-13",
+): void => {
+  const reference = d(expected);
+  const relativeError = actual.minus(reference).abs().div(reference.abs());
+  expect(relativeError.toNumber()).toBeLessThanOrEqual(Number(tolerance));
+};
+
 describe("RpnCalculator", () => {
   test("initial stack is four zero registers", () => {
     const calc = new RpnCalculator();
@@ -783,6 +793,98 @@ describe("RpnCalculator", () => {
     expect(calc.x.toNumber()).toBeCloseTo(Math.sqrt(Math.PI), 12);
   });
 
+  test("gamma-backed factorial agrees with independent high-precision reference values", () => {
+    // References were generated independently with mpmath 1.3.0 at 80 decimal digits.
+    // The tolerance is tighter than half a unit in the calculator's 12th significant digit.
+    const references = [
+      ["-9.75", "-0.000021426084765762825406719919612220105369532114469554"],
+      ["-9.9999999999999", "-27557319.223992095879048355196930730476717364113978886"],
+      ["-10.0000000000001", "27557319.223979685426066285525922973332654577464310191"],
+      ["-5.5", "-0.06001960130050424642702789361578481042277416147716"],
+      ["-3.75", "-1.0044979832303122595825274890715628060246352021832"],
+      ["-1.99999999999999", "-100000000000000.42278433509848125779679217436498158323"],
+      ["-2.00000000000001", "99999999999999.577215664901546979009816354428914194443"],
+      ["-2.5", "2.3632718012073547030642233111215269103967326081632"],
+      ["-1.5", "-3.5449077018110320545963349666822903655950989122448"],
+      ["-1.1", "-10.68628702119319354897305335694480778169838785061"],
+      ["-1.000001", "-1000000.57721665395843566863687744059753273243643"],
+      ["-0.999999", "999999.42278532415355498927168952386455694173499103"],
+      ["-0.75", "3.6256099082219083119306851558676720029951676828801"],
+      ["-0.5", "1.7724538509055160272981674833411451827975494561224"],
+      ["-0.25", "1.2254167024651776451290983033628905268512392481081"],
+      ["0.1", "0.95135076986687318362924871772654021925505786260884"],
+      ["0.5", "0.88622692545275801364908374167057259139877472806119"],
+      ["1.5", "1.3293403881791370204736256125058588870981620920918"],
+      ["10.25", "6552134.1374906621414085236192298709133226091712174"],
+      ["50.5", "2.1666837707377397045124563740097635252812665640414e+65"],
+      ["100.25", "2.9558374475433668949348698240972757583387658816627e+158"],
+      ["252.5", "3.2509204772173278009283519744234321525815045241502e+498"],
+      ["252.999999999999", "5.1734609926114419296315026172191705486013277974154e+499"],
+    ] as const;
+
+    for (const [input, expected] of references) {
+      const calc = new RpnCalculator();
+      processLine(calc, `${input} !`);
+      expectRelativeErrorAtMost(calc.x, expected);
+    }
+  });
+
+  test("gamma-backed factorial satisfies the gamma recurrence across both calculation paths", () => {
+    for (const input of ["-8.75", "-3.5", "-1.25", "-0.75", "0.25", "4.5", "40.25"]) {
+      const x = d(input);
+      const factorial = new RpnCalculator();
+      const successorFactorial = new RpnCalculator();
+      processLine(factorial, `${input} !`);
+      processLine(successorFactorial, `${x.plus(1).toString()} !`);
+
+      const expected = factorial.x.times(x.plus(1));
+      expectRelativeErrorAtMost(successorFactorial.x, expected.toString(), "1e-12");
+    }
+  });
+
+  test("factorial handles exact integer boundaries", () => {
+    for (const [input, expected] of [
+      ["0", "1"],
+      ["1", "1"],
+      ["253", "5.1734609926400789218043308997295274695423561272066e+499"],
+    ] as const) {
+      const calc = new RpnCalculator();
+      processLine(calc, `${input} !`);
+      expectRelativeErrorAtMost(calc.x, expected);
+    }
+  });
+
+  test("gamma-backed factorial follows HP underflow and overflow limits", () => {
+    const smallest = new RpnCalculator();
+    processLine(smallest, "-254.1 !");
+    expectRelativeErrorAtMost(
+      smallest.x,
+      "1.1297437316854821716772633191356365954071853171768e-499",
+    );
+
+    const underflow = new RpnCalculator();
+    processLine(underflow, "-254.2 !");
+    expect(underflow.x.isZero()).toBe(true);
+
+    const hugeUnderflow = new RpnCalculator();
+    processLine(hugeUnderflow, "-30000000000000000.5 !");
+    expect(hugeUnderflow.x.isZero()).toBe(true);
+
+    const largest = new RpnCalculator();
+    processLine(largest, `-0.${"9".repeat(499)} !`);
+    expectRelativeErrorAtMost(largest.x, "1e499");
+
+    const nearMaximum = new RpnCalculator();
+    processLine(nearMaximum, `-0.${"9".repeat(499)}8999999999998 !`);
+    expectRelativeErrorAtMost(nearMaximum.x, "9.99999999998e499");
+
+    const nearPole = `-0.${"9".repeat(500)}`;
+    const overflow = new RpnCalculator();
+    processLine(overflow, nearPole);
+    expect(() => processLine(overflow, "!")).toThrow("invalid operation (overflow)");
+    expectStack(overflow, [ZERO, ZERO, ZERO, d(nearPole)]);
+  });
+
   test("common exponential and X root", () => {
     const calc = new RpnCalculator();
     processLine(calc, "3 10^x 27 3 xroot -27 3 xroot");
@@ -1045,20 +1147,24 @@ describe("RpnCalculator", () => {
     expect(calc.x.toString()).toBe("12.35");
   });
 
-  test("factorial rejects negative integers", () => {
-    const calc = new RpnCalculator();
-    processLine(calc, "-1");
-    expect(() => processLine(calc, "!")).toThrow(
-      "factorial or gamma is undefined for negative integers",
-    );
-    expectStack(calc, [ZERO, ZERO, ZERO, d(-1)]);
+  test("factorial rejects negative-integer gamma poles", () => {
+    for (const input of ["-1", "-10"]) {
+      const calc = new RpnCalculator();
+      processLine(calc, input);
+      expect(() => processLine(calc, "!")).toThrow(
+        "factorial or gamma is undefined for negative integers",
+      );
+      expectStack(calc, [ZERO, ZERO, ZERO, d(input)]);
+    }
   });
 
   test("factorial rejects values above the HP 32SII range", () => {
-    const calc = new RpnCalculator();
-    processLine(calc, "254");
-    expect(() => processLine(calc, "!")).toThrow("factorial or gamma input is out of range");
-    expectStack(calc, [ZERO, ZERO, ZERO, d(254)]);
+    for (const input of ["253.000000000001", "254"]) {
+      const calc = new RpnCalculator();
+      processLine(calc, input);
+      expect(() => processLine(calc, "!")).toThrow("factorial or gamma input is out of range");
+      expectStack(calc, [ZERO, ZERO, ZERO, d(input)]);
+    }
   });
 
   test("invalid unary operation preserves stack", () => {

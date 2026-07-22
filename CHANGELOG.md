@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Corrected gamma-backed factorial accuracy near negative-integer poles and enforced HP-style underflow and overflow limits across the supported domain.
+
 ## [0.5.0] - 2026-07-22
 
 ### Added

@@ -176,6 +176,8 @@ In fraction display, `rnd` changes `X` to the decimal value of the displayed fra
 
 A few convenience aliases are currently accepted: `dup`, `xy`, `rdn`, `pow`, `alog`, `fact`, `pct`, `pctchg`, and `neg`.
 
+Factorial accepts finite inputs no greater than 253, excluding negative integers. Noninteger inputs use the gamma extension \(x! = \Gamma(x + 1)\). Nonzero magnitudes below \(10^{-499}\) underflow to zero; results above the HP 32SII maximum of \(9.99999999999 \times 10^{499}\) report overflow and preserve the stack.
+
 ## Known HP 32SII differences
 
 - Base-mode arithmetic saturates at the signed 36-bit limits, but it does not emit the HP 32SII's momentary `OVERFLOW` warning.
